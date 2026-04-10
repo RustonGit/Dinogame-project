@@ -17,8 +17,7 @@ int main(){
     SystemClock_Config();
 }
 
-void Init_PushButton_5()
-{			
+void Init_PushButton_5(){
   uint32_t temp;    
 
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;  /* enable GPIOB clock */
@@ -39,78 +38,70 @@ void Init_PushButton_5()
 
 }
 
-void LCD_Init()
-	{
-		uint32_t temp;
-		
-        /* enable GPIOA clock */ 
-        RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN; 
-        /* enable GPIOB clock */ 
-        RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
-        /*PB5 MOSI, PA10 /CS_7 latch , PA5 shift clock */
+void LCD_Init(){
+  uint32_t temp;
+  /* enable GPIOA clock */ 
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN; 
+  /* enable GPIOB clock */ 
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+  /*PB5 MOSI, PA10 /CS_7 latch , PA5 shift clock */
+  
+  /*PA5 and PA10 are outputs*/ temp = GPIOA->MODER;
+  temp &= ~(0x03<<(2*5)); temp|=(0x01<<(2*5)); 
+  temp &= ~(0x03<<(2*10)); temp|=(0x01<<(2*10)); 
+  GPIOA->MODER = temp;
+  
+  temp=GPIOA->OTYPER;
+  temp &=~(0x01<<5);
+  temp &=~(0x01<<10); GPIOA->OTYPER=temp;
 
-			 
-        /*PA5 and PA10 are outputs*/ temp = GPIOA->MODER;
-        temp &= ~(0x03<<(2*5)); temp|=(0x01<<(2*5)); 
-        temp &= ~(0x03<<(2*10)); temp|=(0x01<<(2*10)); 
-        GPIOA->MODER = temp;
-			 
-        temp=GPIOA->OTYPER;
-        temp &=~(0x01<<5);
-        temp &=~(0x01<<10); GPIOA->OTYPER=temp;
+  temp=GPIOA->PUPDR;
+  temp&=~(0x03<<(2*5));
+  temp&=~(0x03<<(2*10)); GPIOA->PUPDR=temp;
 
-        temp=GPIOA->PUPDR;
-        temp&=~(0x03<<(2*5));
-        temp&=~(0x03<<(2*10)); GPIOA->PUPDR=temp;
+  /*PB5 is output*/
 
-        /*PB5 is output*/
+  temp = GPIOB->MODER;
+  temp &= ~(0x03<<(2*5)); 
+  temp|=(0x01<<(2*5)); 
+  GPIOB->MODER = temp;
+  
+  temp=GPIOB->OTYPER;
+  temp &=~(0x01<<5); 
+  GPIOB->OTYPER=temp;
+      
+  temp=GPIOB->PUPDR;
+  temp&=~(0x03<<(2*5)); 
+  GPIOB->PUPDR=temp;
 
-        temp = GPIOB->MODER;
-        temp &= ~(0x03<<(2*5)); 
-        temp|=(0x01<<(2*5)); 
-        GPIOB->MODER = temp;
 
-			 
-        temp=GPIOB->OTYPER;
-        temp &=~(0x01<<5); 
-        GPIOB->OTYPER=temp;
+  /* LCD controller reset sequence */ 
+  Delay(20);
+  LCD_nibble_write(0x30,0); 
+  Delay(5); 
+  LCD_nibble_write(0x30,0); 
+  Delay(1); 
+  LCD_nibble_write(0x30,0);
+  Delay(1); 
+  LCD_nibble_write(0x20,0); 
+  Delay(1);
 
-            
-        temp=GPIOB->PUPDR;
-        temp&=~(0x03<<(2*5)); 
-        GPIOB->PUPDR=temp;
-
-		
-		
-        /* LCD controller reset sequence */ 
-        Delay(20);
-        LCD_nibble_write(0x30,0); 
-        Delay(5); 
-        LCD_nibble_write(0x30,0); 
-        Delay(1); 
-        LCD_nibble_write(0x30,0);
-        Delay(1); 
-        LCD_nibble_write(0x20,0); 
-        Delay(1);
-
-        Write_Instr_LCD(0x28); /* set 4 bit data LCD - two line display - 5x8 font*/ 
-        Write_Instr_LCD(0x0E); /* turn on display, turn on cursor , turn off blinking */ 
-        Write_Instr_LCD(0x01); /* clear display screen and return to home position*/ 
-        Write_Instr_LCD(0x06); /* move cursor to right (entry mode set instruction)*/
-
+  Write_Instr_LCD(0x28); /* set 4 bit data LCD - two line display - 5x8 font*/ 
+  Write_Instr_LCD(0x0E); /* turn on display, turn on cursor , turn off blinking */ 
+  Write_Instr_LCD(0x01); /* clear display screen and return to home position*/ 
+  Write_Instr_LCD(0x06); /* move cursor to right (entry mode set instruction)*/
 
 }
 
 void LCD_nibble_write(uint8_t temp, uint8_t s){
-
 /*writing instruction*/ 
 if (s==0){ 
 	temp=temp&0xF0;
 	temp=temp|0x02; /*RS (bit 0) = 0 for Command EN (bit1)=high */ 
 	Write_SR_LCD(temp);
 
-    temp=temp&0xFD; /*RS (bit 0) = 0 for Command EN (bit1) = low*/ 
-    Write_SR_LCD(temp);	}
+  temp=temp&0xFD; /*RS (bit 0) = 0 for Command EN (bit1) = low*/ 
+  Write_SR_LCD(temp);	}
 
 /*writing data*/ 
 else if (s==1) {
@@ -122,54 +113,52 @@ else if (s==1) {
   Write_SR_LCD(temp); 
 }}
 
-void Write_7Seg(uint8_t temp_Enable, uint8_t temp_Digit)
-{
-uint8_t Enable[5] = {0x00, 0x08, 0x04, 0x02, 0x01};
-/* Enable[i] can enable display i by writing one to DIGIT i and zeros to the other Digits */
+void Write_7Seg(uint8_t temp_Enable, uint8_t temp_Digit){
+  uint8_t Enable[5] = {0x00, 0x08, 0x04, 0x02, 0x01};
+  /* Enable[i] can enable display i by writing one to DIGIT i and zeros to the other Digits */
 
-uint8_t Digit[10]= {0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90};
+  uint8_t Digit[10]= {0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90};
 
-Write_SR_7S(Enable[temp_Enable], Digit[temp_Digit]);
+  Write_SR_7S(Enable[temp_Enable], Digit[temp_Digit]);
 }
 
-void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit)
-{
-int i;
-uint8_t mask=0b10000000;
-for(i=0; i<8; i++)
-{
-		if((temp_Digit&mask)==0) 
-			GPIOB->ODR&=~(1<<5);
-	else
-		GPIOB->ODR|=(1<<5);
-	/*	Sclck */
-	GPIOA->ODR&=~(1<<5);
-	HAL_Delay(1);
-	GPIOA->ODR|=(1<<5);
-	HAL_Delay(1);
-	mask=mask>>1;
-}
-mask=0b10000000;
-for(i=0; i<8; i++)
-{
-	if((temp_Enable&mask)==0) 
-		GPIOB->ODR&=~(1<<5);
-	else
-		GPIOB->ODR|=(1<<5);
-	/*	Sclck */
-	GPIOA->ODR&=~(1<<5);
-	/*Delay(1);*/ 
-	GPIOA->ODR|=(1<<5);
-/*Delay(1);	*/ 
-mask=mask>>1;
-}
-/*Latch*/ // Needs to be tampered with to run LCD as well
-GPIOC->ODR|=(1<<10); 
-GPIOC->ODR&=~(1<<10);
+void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
+  int i;
+  uint8_t mask=0b10000000;
+  for(i=0; i<8; i++){
+      if((temp_Digit&mask)==0) 
+        GPIOB->ODR&=~(1<<5);
+    else
+      GPIOB->ODR|=(1<<5);
+    /*	Sclck */
+    GPIOA->ODR&=~(1<<5);
+    HAL_Delay(1);
+    GPIOA->ODR|=(1<<5);
+    HAL_Delay(1);
+    mask=mask>>1;
+  }
+
+  mask=0b10000000;
+  for(i=0; i<8; i++)
+  {
+    if((temp_Enable&mask)==0) 
+      GPIOB->ODR&=~(1<<5);
+    else
+      GPIOB->ODR|=(1<<5);
+    /*	Sclck */
+    GPIOA->ODR&=~(1<<5);
+    /*Delay(1);*/ 
+    GPIOA->ODR|=(1<<5);
+    /*Delay(1);	*/ 
+    mask=mask>>1;
+  }
+  /*Latch*/ // Needs to be tampered with to run LCD as well
+  GPIOC->ODR|=(1<<10); 
+  GPIOC->ODR&=~(1<<10);
 }
 
 void Init_7seg(){
-    temp = GPIOA->MODER;
+  temp = GPIOA->MODER;
 	temp &= ~(0x03<<(2*5));
 	temp|=(0x01<<(2*5));
 	GPIOA->MODER = temp; 
@@ -181,7 +170,6 @@ void Init_7seg(){
 	temp=GPIOA->PUPDR;
 	temp&=~(0x03<<(2*5));
 	GPIOA->PUPDR=temp;
-
 	
 	temp = GPIOB->MODER;
 	temp &= ~(0x03<<(2*5));
@@ -209,46 +197,44 @@ void Init_7seg(){
 	temp&=~(0x03<<(2*10));
 	GPIOC->PUPDR=temp;	
 	
-	 temp = GPIOA->MODER;
-			 temp &= ~(0x03<<(2*10));
-			 temp|=(0x01<<(2*10));
-			 GPIOA->MODER = temp; 
-			 
-			 temp=GPIOA->OTYPER;
-			 temp &=~(0x01<<10);
-	     GPIOA->OTYPER=temp;
-	
-			 temp=GPIOA->PUPDR;
-	     temp&=~(0x03<<(2*10));
-	     GPIOA->PUPDR=temp;
+	temp = GPIOA->MODER;
+  temp &= ~(0x03<<(2*10));
+  temp|=(0x01<<(2*10));
+  GPIOA->MODER = temp; 
+  
+  temp=GPIOA->OTYPER;
+  temp &=~(0x01<<10);
+  GPIOA->OTYPER=temp;
+
+  temp=GPIOA->PUPDR;
+  temp&=~(0x03<<(2*10));
+  GPIOA->PUPDR=temp;
 
 }
 
-void Write_SR_LCD(uint8_t temp)
-{
-int i;
-uint8_t mask=0b10000000;
-	
-for(i=0; i<8; i++) {
-        if((temp&mask)==0)
-        GPIOB->ODR&=~(1<<5);
-        else
-        GPIOB->ODR|=(1<<5);
+void Write_SR_LCD(uint8_t temp){
+  int i;
+  uint8_t mask=0b10000000;
+    
+  for(i=0; i<8; i++) {
+    if((temp&mask)==0)
+    GPIOB->ODR&=~(1<<5);
+    else
+    GPIOB->ODR|=(1<<5);
 
-        /*	Sclck */
-        GPIOA->ODR&=~(1<<5); GPIOA->ODR|=(1<<5);
-        Delay(1);
+    /*	Sclck */
+    GPIOA->ODR&=~(1<<5); GPIOA->ODR|=(1<<5);
+    Delay(1);
 
-        mask=mask>>1;
-        }
+    mask=mask>>1;
+    }
 
-    /*Latch*/
-    GPIOA->ODR|=(1<<10); 
-    GPIOA->ODR&=~(1<<10);
+  /*Latch*/
+  GPIOA->ODR|=(1<<10); 
+  GPIOA->ODR&=~(1<<10);
 }
 
-void SystemClock_Config(void)
-{
+void SystemClock_Config(void){
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
