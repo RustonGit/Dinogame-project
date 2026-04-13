@@ -14,6 +14,7 @@ void Init_7seg(void);
 void Write_SR_7S(uint8_t, uint8_t);
 void Write_7Seg(uint8_t, uint8_t);
 void SystemClock_Config(void);
+void Shift_LCD(int);
 
 //Main code 
 int main(){
@@ -25,35 +26,58 @@ int main(){
   Init_7seg(); // lcd latch: PC10 |clock: PB5 |serial input: PA5 (all output)
   Init_PushButtons(); // SW 2: PB11, SW 3: PB10, SW 4: PB9, SW 5: PB8
   Init_Buzzer(); // PC9
+  Shift_LCD(); // Moving Starting Screen Text Left and Right
 
   char line1Chars[16] = {0}, line2Chars[16] = {0};
   char dino = '*', obstacle = '|';
-  char* gameOver = "Sorry, you lost", welcome = "Push to Start", difficutys = "0=E 1=M 2=H";
-  int startBool = 0, difficulty; // boolean to say when to start the game
+  char* gameOver = "Sorry, you lost", welcome = "Push to Start", difficutys = " 0=E 1=M 2=H ";
+  int start = 0, difficulty; // int to say when to start the game and int for difficulty
+  int shiftChecker; // two ints for direction of shifting and where on the LCD the Text is
 
   Write_String_LCD(welcome);
   Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
   Write_String_LCD(difficutys);
 
   while(1){
-    while (startBool == 0){ // wait till a difficulty button is pressed until we start the game
-			if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
-        Delay(25); // make sure we are still pressed to avoid debouncing
-        if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
-          if((GPIOB->IDR&(0x1<<11))!=0){
-            difficulty = 0;
-          } else if((GPIOB->IDR&(0x1<<10))!=0){
-            difficulty = 1;
-          } else if((GPIOB->IDR&(0x1<<9))!=0){
-            difficulty = 2;
-          }
-          startBool = 1;
-          Write_Instr_LCD(0x01); // clear screen
-        }
-      // stay while button is still pressed
-      while((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0) {}
-      delay(25); // more debouncing
-		  }  
+	shiftChecker = 0;
+    while (start == 0){ // wait till a difficulty button is pressed until we start the game
+		if (direction == 0) { // If shifting right
+			if (shiftChecker < 3) { // Occurs while shift is possible
+				Shift_LCD(direction); // Shifts Top Line 1
+				shiftChecker++; // Increments the checker
+			} else {
+				direction = 1; // Changes direction to shifting left
+				Shift_LCD(direction); // Shifts Top Line Left 1
+				shiftChecker--; // Decrements the checker
+			}
+		} else { // If shifting left
+			if (shiftChecker > 0) { // Occurs while shift is possible
+				Shift_LCD(direction); //
+				shiftChecker--;
+			} else {
+				direction = 1;
+				Shift_LCD(direction);
+				shiftChecker++;
+			}
+		}
+		if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
+	        Delay(25); // make sure we are still pressed to avoid debouncing
+	        if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
+	          if((GPIOB->IDR&(0x1<<11))!=0){
+	            difficulty = 0;
+	          } else if((GPIOB->IDR&(0x1<<10))!=0){
+	            difficulty = 1;
+	          } else if((GPIOB->IDR&(0x1<<9))!=0){
+	            difficulty = 2;
+	          }
+	          startBool = 1;
+	          Write_Instr_LCD(0x01); // clear screen
+	        }
+	      	// stay while button is still pressed
+	      	while((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0) {}
+	      	delay(25); // more debouncing
+		}
+		
     }
 
     // to do : rest of the program
@@ -63,11 +87,10 @@ int main(){
 
 void Delay(unsigned int n){
 	int i;
-	if(n!=0)
-	{
-    for (; n > 0; n--)
-        for (i = 0; i < 136; i++) ;
-}
+	if(n!=0) {
+	    for (; n > 0; n--)
+	        for (i = 0; i < 300; i++) ;
+	}
 }
 
 void Init_Buzzer(){
@@ -204,46 +227,48 @@ void LCD_Init(){
 }
 
 void Write_SR_LCD(uint8_t temp){
-  int i;
-  uint8_t mask=0b10000000;
-    
-  for(i=0; i<8; i++) {
-    if((temp&mask)==0)
-    GPIOB->ODR&=~(1<<5);
-    else
-    GPIOB->ODR|=(1<<5);
-
-    /*	Sclck */
-    GPIOA->ODR&=~(1<<5); GPIOA->ODR|=(1<<5);
-    Delay(1);
-
-    mask=mask>>1;
-    }
-
-  /*Latch*/
-  GPIOA->ODR|=(1<<10); 
-  GPIOA->ODR&=~(1<<10);
+	int i;
+	uint8_t mask=0b10000000;
+	
+	for(i=0; i<8; i++) {
+		if((temp&mask)==0)
+			GPIOB->ODR&=~(1<<5);
+		else
+			GPIOB->ODR|=(1<<5);
+		
+		/*	Sclck */
+		GPIOA->ODR&=~(1<<5); GPIOA->ODR|=(1<<5);
+		Delay(1);
+		
+		mask=mask>>1;
+	}
+	
+	/*Latch*/
+	GPIOA->ODR|=(1<<10); 
+	GPIOA->ODR&=~(1<<10);
 }
 
 void LCD_nibble_write(uint8_t temp, uint8_t s){
 /*writing instruction*/ 
-if (s==0){ 
-	temp=temp&0xF0;
-	temp=temp|0x02; /*RS (bit 0) = 0 for Command EN (bit1)=high */ 
-	Write_SR_LCD(temp);
-
-  temp=temp&0xFD; /*RS (bit 0) = 0 for Command EN (bit1) = low*/ 
-  Write_SR_LCD(temp);	}
-
-/*writing data*/ 
-else if (s==1) {
-	temp=temp&0xF0;
-  temp=temp|0x03;	/*RS(bit 0)=1 for data EN (bit1) = high*/ 
-  Write_SR_LCD(temp);
-
-  temp=temp&0xFD; /*RS(bit 0)=1 for data EN(bit1) = low*/ 
-  Write_SR_LCD(temp); 
-}}
+	if (s==0){ 
+		temp=temp&0xF0;
+		temp=temp|0x02; /*RS (bit 0) = 0 for Command EN (bit1)=high */ 
+		Write_SR_LCD(temp);
+	
+	  	temp=temp&0xFD; /*RS (bit 0) = 0 for Command EN (bit1) = low*/ 
+	  	Write_SR_LCD(temp);
+	}
+	
+	/*writing data*/ 
+	else if (s==1) {
+		temp=temp&0xF0;
+		temp=temp|0x03;	/*RS(bit 0)=1 for data EN (bit1) = high*/ 
+	  	Write_SR_LCD(temp);
+	
+	  	temp=temp&0xFD; /*RS(bit 0)=1 for data EN(bit1) = low*/ 
+	 	Write_SR_LCD(temp); 
+	}
+}
 
 void Write_Instr_LCD(uint8_t code){
 	LCD_nibble_write(code & 0xF0, 0);
@@ -270,7 +295,7 @@ void Write_String_LCD(char* temp){
 
 void Init_7seg(){
   // Serial clock
-  temp = GPIOA->MODER;
+	temp = GPIOA->MODER;
 	temp &= ~(0x03<<(2*5));
 	temp|=(0x01<<(2*5));
 	GPIOA->MODER = temp; 
@@ -283,7 +308,7 @@ void Init_7seg(){
 	temp&=~(0x03<<(2*5));
 	GPIOA->PUPDR=temp;
 	
-  // serial input
+	// serial input
 	temp = GPIOB->MODER;
 	temp &= ~(0x03<<(2*5));
 	temp|=(0x01<<(2*5));
@@ -297,7 +322,7 @@ void Init_7seg(){
 	temp&=~(0x03<<(2*5));
 	GPIOB->PUPDR=temp;
 	
-  // latch
+	// latch
 	temp = GPIOC->MODER;
 	temp &= ~(0x03<<(2*10));
 	temp|=(0x01<<(2*10));
@@ -312,24 +337,24 @@ void Init_7seg(){
 	GPIOC->PUPDR=temp;	
 	
 	temp = GPIOA->MODER;
-  temp &= ~(0x03<<(2*10));
-  temp|=(0x01<<(2*10));
-  GPIOA->MODER = temp; 
-  
-  temp=GPIOA->OTYPER;
-  temp &=~(0x01<<10);
-  GPIOA->OTYPER=temp;
+	temp &= ~(0x03<<(2*10));
+	temp|=(0x01<<(2*10));
+	GPIOA->MODER = temp; 
+	
+	temp=GPIOA->OTYPER;
+	temp &=~(0x01<<10);
+	GPIOA->OTYPER=temp;
 
-  temp=GPIOA->PUPDR;
-  temp&=~(0x03<<(2*10));
-  GPIOA->PUPDR=temp;
+	temp=GPIOA->PUPDR;
+	temp&=~(0x03<<(2*10));
+	GPIOA->PUPDR=temp;
 
 }
 
 void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
   int i;
   uint8_t mask=0b10000000;
-  for(i=0; i<8; i++){
+  for(i=0; i<8; i++) {
       if((temp_Digit&mask)==0) 
         GPIOB->ODR&=~(1<<5);
     else
@@ -343,8 +368,7 @@ void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
   }
 
   mask=0b10000000;
-  for(i=0; i<8; i++)
-  {
+  for(i=0; i<8; i++) {
     if((temp_Enable&mask)==0) 
       GPIOB->ODR&=~(1<<5);
     else
@@ -375,8 +399,7 @@ void SystemClock_Config(void){
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   // Configure the main internal regulator output voltage
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
-  {
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK) {
     Error_Handler();
   }
 
@@ -387,8 +410,7 @@ void SystemClock_Config(void){
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
     Error_Handler();
   }
 
@@ -400,19 +422,23 @@ void SystemClock_Config(void){
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
     Error_Handler();
   }
 }
 
-void Error_Handler(void)
-{
+void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
-  {
-  }
+	  {}
   /* USER CODE END Error_Handler_Debug */
+}
+
+void Shift_LCD(int direction) {
+	if (direction == 0)
+		Write_Instr_LCD(0x1C);
+	if (direction == 1)
+		Write_Instr_LCD(0x18);
 }
