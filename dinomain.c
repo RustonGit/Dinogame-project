@@ -112,55 +112,25 @@ void Init_GPIO_Ports(){
   temp &= ~(0x03<<(2*9));
   GPIOC->PUPDR = temp;
 
-// SW5: PB8
+// SW5: PB8; SW4: PB9; SW3: PB10; SW2: PB11
   temp = GPIOB->MODER;
   temp &= ~(0x03<<(2*8));
-  GPIOB->MODER = temp; 
-
-  temp = GPIOB->OTYPER;
-  temp &= ~(0x01<<8);
-  GPIOB->OTYPER = temp;
-
-  temp = GPIOB->PUPDR;
-  temp &= ~(0x03<<(2*8));
-  GPIOB->PUPDR = temp;
-
-  // SW4: PB9
-  temp = GPIOB->MODER;
   temp &= ~(0x03<<(2*9));
-  GPIOB->MODER = temp; 
-
-  temp = GPIOB->OTYPER;
-  temp &= ~(0x01<<9);
-  GPIOB->OTYPER = temp;
-
-  temp = GPIOB->PUPDR;
-  temp &= ~(0x03<<(2*9));
-  GPIOB->PUPDR = temp;
-
-  // SW 3: PB10
-  temp = GPIOB->MODER;
   temp &= ~(0x03<<(2*10));
-  GPIOB->MODER = temp; 
-
-  temp = GPIOB->OTYPER;
-  temp &= ~(0x01<<10);
-  GPIOB->OTYPER = temp;
-
-  temp = GPIOB->PUPDR;
-  temp &= ~(0x03<<(2*10));
-  GPIOB->PUPDR = temp;
-
-  // SW 2: PB11
-  temp = GPIOB->MODER;
   temp &= ~(0x03<<(2*11));
   GPIOB->MODER = temp; 
 
   temp = GPIOB->OTYPER;
+  temp &= ~(0x01<<8);
+  temp &= ~(0x01<<9);
+  temp &= ~(0x01<<10);
   temp &= ~(0x01<<11);
   GPIOB->OTYPER = temp;
 
   temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*8));
+  temp &= ~(0x03<<(2*9));
+  temp &= ~(0x03<<(2*10));
   temp &= ~(0x03<<(2*11));
   GPIOB->PUPDR = temp;
 	
