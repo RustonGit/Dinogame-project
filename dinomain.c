@@ -14,6 +14,7 @@ void Write_7Seg(uint8_t, uint8_t);
 void SystemClock_Config(void);
 void Shift_LCD(int);
 void fail(void);
+void feed_LCD(char , char char2);
 void createGameMap(char**, char**, int);
 
 //Main code 
@@ -91,6 +92,16 @@ void Delay(unsigned int n){
 	}
 }
 
+void feed_LCD(char char1, char char2){
+  
+    Write_Instr_LCD(0x80 | 15);
+    Delay(1);
+    Write_Char_LCD(char1);
+    Delay(1);
+    Write_Instr_LCD(0xC0 | 15);
+    Delay(1);
+    Write_Char_LCD(char2);
+}
 void createGameMap(char** line1, char** line2, int spacing){
 	int obstPosition = rand()%2; // obst position 1 = up, 0 = down;
 	if(spacing == 4){
