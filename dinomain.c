@@ -13,6 +13,7 @@ void Write_7Seg(uint8_t, uint8_t);
 void SystemClock_Config(void);
 void Shift_LCD(int);
 void fail(void);
+void createGameMap(char**, char**, int);
 
 //Main code 
 int main(){
@@ -86,6 +87,46 @@ void Delay(unsigned int n){
 	if(n!=0) {
 	    for (; n > 0; n--)
 	        for (i = 0; i < 300; i++) ;
+	}
+}
+
+void createGameMap(char** line1, char** line2, int spacing){
+	int obstPosition = rand()%2; // obst position 1 = up, 0 = down;
+	if(spacing == 4){
+		for(int i = 0; i<4; i++){
+			*(line1) = "   "; // start by creating the first 3 spaces
+			if(obstPosition == 0){
+				strcat(*(line1), "x");
+				strcat(*(line2), " ");
+			} else {
+				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
+				strcat(*(line2), "x");
+			}
+		}
+	}
+	if(spacing == 8){
+		for(int i = 0; i<2; i++){
+			*(line1) = "       "; // start by creating the first 7 spaces
+			if(obstPosition == 0){
+				strcat(*(line1), "x");
+				strcat(*(line2), " ");
+			} else {
+				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
+				strcat(*(line2), "x");
+			}
+		}
+	}
+	if(spacing == 16){
+		for(int i = 0; i<1; i++){
+			*(line1) = "               "; // start by creating the first 7 spaces
+			if(obstPosition == 0){
+				strcat(*(line1), "x");
+				strcat(*(line2), " ");
+			} else {
+				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
+				strcat(*(line2), "x");
+			}
+		}
 	}
 }
 
