@@ -123,8 +123,8 @@ int buttonPress(uint8_t buttonNum){
   static int lastPressTime = 0;
 	// since we cannot use delay with these functions (blocks main loop from running for a bit) we must use the clock again here to debounce
 	if ((GPIOB->IDR&(0x1<<buttonNum)) != 0){
-		if (HAL_getTick() - lastPressTime >= 20){
-      lastPressTime = HAL_getTick(); // set the last press time every time it is pressed so the if statement works
+		if (HAL_GetTick() - lastPressTime >= 20){
+      lastPressTime = HAL_GetTick(); // set the last press time every time it is pressed so the if statement works
 			return 1;
 	  }
 	}
