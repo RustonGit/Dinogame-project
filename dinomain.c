@@ -27,9 +27,13 @@ int main(){
 
   char line1Chars[16] = {0}, line2Chars[16] = {0};
   char dino = '*', obstacle = '|';
-  char* gameOver = "Sorry, you lost", welcome = "Push to Start", difficutys = " 0=E 1=M 2=H ";
-  int start = 0, difficulty; // int to say when to start the game and int for difficulty
-  int shiftChecker; // two ints for direction of shifting and where on the LCD the Text is
+  char* gameOver = "Sorry, you lost";
+	char* welcome = "Push to Start";
+	char* difficutys = " 0=E 1=M 2=H ";
+  int start = 0;
+	int difficulty; // int to say when to start the game and int for difficulty
+	int direction = 0;
+  int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
   int object;
   int i;
 
@@ -37,25 +41,28 @@ int main(){
 	Write_String_LCD(welcome);
  	Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
   	Write_String_LCD(difficutys);
-	shiftChecker = 0;
     while (start == 0) { // wait till a difficulty button is pressed until we start the game
 		if (direction == 0) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
 				Shift_LCD(direction); // Shifts Top Line 1
 				shiftChecker++; // Increments the checker
+				Delay(400);
 			} else {
 				direction = 1; // Changes direction to shifting left
 				Shift_LCD(direction); // Shifts Top Line Left 1
 				shiftChecker--; // Decrements the checker
+				Delay(400);
 			}
 		} else { // If shifting left
 			if (shiftChecker > 0) { // Occurs while shift is possible
 				Shift_LCD(direction); //
 				shiftChecker--;
+				Delay(400);
 			} else {
-				direction = 1;
+				direction = 0;
 				Shift_LCD(direction);
 				shiftChecker++;
+				Delay(400);
 			}
 		}
 		if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
@@ -140,6 +147,12 @@ void createGameMap(char** line1, char** line2, int spacing){
 			}
 		}
 	}
+}
+void Shift_LCD(int direction) {
+	if (direction == 0)
+		Write_Instr_LCD(0x1C);
+	if (direction == 1)
+		Write_Instr_LCD(0x18);
 }
 
 void Init_GPIO_Ports(){
@@ -400,11 +413,4 @@ void Error_Handler(void) {
   while (1)
 	  {}
   /* USER CODE END Error_Handler_Debug */
-}
-
-void Shift_LCD(int direction) {
-	if (direction == 0)
-		Write_Instr_LCD(0x1C);
-	if (direction == 1)
-		Write_Instr_LCD(0x18);
 }
