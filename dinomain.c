@@ -16,6 +16,8 @@ int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
 void updateGame(uint32_t , int*);
+void updateGameOver(int*);
+void resetVars(void);
 void feed_LCD(char*, char*, int);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
@@ -24,6 +26,8 @@ void EXTI9_5_IRQHandler();
 void jump_Buzz();
 
 volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
+// Used to prevent initialization of certain variables multiple times in 1 run of the game
+volatile int initVarsWelcome = 1, initVarsButton = 1, initVarsGame = 1, initVarsGameOver = 1, initVarsGameMap = 1;
 
 //Main code 
 int main(){
@@ -37,50 +41,42 @@ int main(){
   	char line1Chars[16] = {0}, line2Chars[16] = {0};
   	char dino = '*', obstacle = '|';
   	char* gameOver = "Sorry, you lost";
-  	char* welcome = "Push to Start";
-  	char* difficultys = " 0=E 1=M 2=H ";
   	int difficulty; // int to say when to start the game and int for difficulty
   	int gameState = 0; // 0:welcome 1:gameplay 2:gameover
-
+	int score = 0;
 
   	// https://www.geeksforgeeks.org/c/understanding-volatile-qualifier-in-c/
 
-  	Write_String_LCD(welcome); // place welcome text on screen
-  	Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
-  	Write_String_LCD(difficultys);
-
 	while (1) { // start the gameplay loop
 
-    uint32_t now = HAL_GetTick(); // create a timer variable to tell where we are in the game
-
-    switch(gameState) { // create a switch statement to look for and run which state we are in
-
-        case 0:
-            gameState = updateWelcome(now, &difficulty);
-            break;
-
-        case 1:
-          	if(inputEvent != 0){ // if there is an interupt, do it first
-				if(inputEvent == 1){
-				// 1 is pause
-				}	
-				else if(inputEvent == 2){
-				//2 is play
-				}	
-				else if(inputEvent == 3){
-				//3 is jump
-				//When Jump is pressed during program buzz for 500ms
-					jump_Buzz();
-				}
-        	}
-    		updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
-            break;
-
-        // case 2:
-        	//     updateGameOver(now);
-        	//     break;
-    }
-}
+	    uint32_t now = HAL_GetTick(); // create a timer variable to tell where we are in the game
+	
+	    switch(gameState) { // create a switch statement to look for and run which state we are in
+	
+	        case 0:
+	            gameState = updateWelcome(now, &difficulty);
+	            break;
+	
+	        case 1:
+	          	if(inputEvent != 0){ // if there is an interrupt, do it first
+					if(inputEvent == 1){
+						// 1 is pause
+					}	
+					else if(inputEvent == 2){
+						//2 is play
+					}	
+					else if(inputEvent == 3){
+						//3 is jump
+					}
+	        	}
+	    		updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
+	            break;
+	
+	        case 2:
+	        	updateGameOver(now, &score);
+	        	break;
+	    }
+	}
 }
 // Turn buzzer on, after 500 ms turn off, last line of code as safegaurd
 void jump_Buzz(){
@@ -109,9 +105,7 @@ void EXTI1_SW5_Init(void){
 	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI9_PB; // and another pin that triggers the same interupt so we can jump
   	EXTI->RTSR1 |= (1 << 8); // is just EXTI not EXTI1; choosing trigger type (rising edge)
   	NVIC->ISER[0U] |= (1 << 23); // If we don't use |= the other interupts will be removed; this enables the interrupts
-  	EXTI->IMR1 |= (1 << 8); // the 1 goes with the IMR not the EXTI;  turns on the interupt on pin 8
 	EXTI->RTSR1 |= (1 << 9); // initialize interupt on pin 9
-	EXTI->IMR1  |= (1 << 9);
 }
 //Call to interrupt function (events: pause:1, play:2, jump:3)
 void EXTI9_5_IRQHandler(void) {
@@ -132,15 +126,30 @@ void EXTI9_5_IRQHandler(void) {
 
 // game states:
 int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
- 	static uint32_t lastShift; // have to use static with these variables so we don't lose their value in each function call
-	static int direction = 0;
-  	static int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
+ 	static uint32_t lastShift;
+	static int direction;
+	static int shiftChecker;
+	char* welcome = "Push to Start";
+  	char* difficultys = " 0=E 1=M 2=H ";
+	
+	if (initVarsWelcome == 1) {
+		lastShift = 0; // have to use static with these variables so we don't lose their value in each function call
+		direction = 0;
+  		shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
+		initVarsWelcome = 0;
+	}
 	
 	// The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
 	// we can go into the function and shift again, this is required since we are going through this function every tick.
 	// This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
 	// in other functions/ parts of thegame
-  	if (now - lastShift >= 400){
+  	if (displayWelcomeText == 1) {
+		Write_String_LCD(welcome); // place welcome text on screen
+  		Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
+  		Write_String_LCD(difficultys);
+		displayWelcomeText = 0;
+	}
+	if (now - lastShift >= 400) {
 	    lastShift = now; // note you must update now each time the if statement becomes true so we only go through every 400 ticks
 		if ((direction == 1)) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
@@ -183,38 +192,96 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 // will be implemeted in main since we don't want to clutter up this function any more than we have to
 // too much in one function will slow down the game greatly (because it gets ran every tick)
 
-void updateGame(uint32_t now, int* difficulty){
+void updateGame(uint32_t now, int* difficulty) {
 	static int lastScreenShift = 0; // time variable to keep up with ticks
 	static int shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
 	static int start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
-	static char *line1; // lines for carrying row of 16 characters
-	static char *line2;
+	char *line1; // lines for carrying row of 16 characters
+	char *line2;
 	
-	if (start == 0){ // make sure we have a map first
-    createGameMap(&line1, &line2, *difficulty);
+	if (initVarsGame == 1) {
+		lastScreenShift = 0; // time variable to keep up with ticks
+		shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
+		start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
+		initVarsGame = 0;
+	}
+	
+	if (start == 0) { // make sure we have a map first
+    	createGameMap(&line1, &line2, *difficulty);
+		EXTI->IMR1  |= (1 << 8);
+		EXTI->IMR1  |= (1 << 9);
 		start = 1;
 	}
 	
-	if (now - lastScreenShift >= 300){ // shifting the indexes onto the screen
+	if (now - lastScreenShift >= 300) { // shifting the indexes onto the screen
 		lastScreenShift = now;
 		
 		feed_LCD(line1, line2, shiftKey); // shift screen
 		
 		shiftKey++; // update the offset to move the characters
-		if(shiftKey >= 48){
-		shiftKey = 0;
+		if (shiftKey >= 48) {
+			shiftKey = 0;
 			createGameMap(&line1, &line2, *difficulty);
 		}
 	}
 }
 
+void updateGameOver(uint32_t now, int* score) {
+	static int goToStart;
+	static int displayFirstText, DisplaySecondText;
+	static uint32_t waitTime;
+	char* gameOver = "GAME OVER!!";
+	char* displayScore = "   Score: ";
+	char* startOver = "   Try Again??";
+	
+	if (initVarsGameOver == 1) {
+		goToStart = 0;
+		displayFirstText = 1;
+		DisplaySecondText = 1;
+		waitTime = now; // have to use static with these variables so we don't lose their value in each function call
+		initVarsGameOver = 0;
+	}
+	
+	if (displayFirstText == 1) {
+		EXTI->IMR1  &= ~(1 << 8);
+		EXTI->IMR1  &= ~(1 << 9);
+		Write_Instr_LCD(0x01);
+		Write_String_LCD(gameOver);
+		displayFirstText = 0;
+	}
+	if (now - waitTime >= 1000) {
+		if (displaySecondText == 1) {
+			Write_String_LCD(displayScore);
+			Write_Char_LCD(*score + 0x30);
+			Write_Instr_LCD(0xC0);
+			Write_Instr_LCD(startOver);
+			displaySecondText = 0;
+		}
+		if (now - waitTime >= 2000)
+			resetVars();
+			displayWelcomeText = 1;
+	}
+}
+
+void resetVars() {
+	initVarsWelcome = 1;
+	initVarsButton = 1;
+	initVarsGame = 1;
+	initVarsGameOver = 1;
+	initVarsGameMap = 1;
+}
+
 // function to make button presses simpler with debouncing active
 int buttonPress(uint8_t buttonNum){
-  	static int lastPressTime = 0;
+  	static int lastPressTime;
+	if (initVarsButton == 1) {
+		lastPressTime = 0;
+		initVarsButton = 0;
+	}
 	// since we cannot use delay with these functions (blocks main loop from running for a bit) we must use the clock again here to debounce
 	if ((GPIOB->IDR&(0x1<<buttonNum)) != 0){
 		if (HAL_GetTick() - lastPressTime >= 20){
-      	lastPressTime = HAL_GetTick(); // set the last press time every time it is pressed so the if statement works
+      		lastPressTime = HAL_GetTick(); // set the last press time every time it is pressed so the if statement works
 			return 1;
 	  	}
 	}
@@ -226,7 +293,10 @@ void feed_LCD(char* line1, char* line2, int numShift){
   	for(int i = 0; i<16; i++){
 		char l1 = line1[i+numShift]; // places all characters in the current frame depending on which offset we are on
 		char l2 = line2[i+numShift];
-	
+
+		if (i = 0) {
+			if (line1[numShift] == 'x') {
+				
 		Write_Instr_LCD(0x80 | i); // writes to top line
 		Write_Char_LCD(l1);
 	
@@ -236,20 +306,24 @@ void feed_LCD(char* line1, char* line2, int numShift){
 }
 // this function might be wrong, keeps writing almost random letters for some reason
 void createGameMap(char** line1, char** line2, int difficulty){
-	int obstPosition = rand()%2; // obst position 1 = up, 0 = down;
-	int temp = 1;
 	static char line1buffer[64]; // creates a register to hold a large game map so we don't have to create a new map so often
 	static char line2buffer[64];
 	static int start;
+	int obstPosition; // obst position 1 = up, 0 = down;
+	int temp = 1;
+	if (initVarsGameMap == 1) {
+		start = 0;
+		initVarsGameMap = 0;
+	}
 	
-	for(int i = 0; i<64; i++){
+	for(int i = 0; i < 64; i++){
 		line1buffer[i] = ' '; // filling entire buffer with blanks
 		line2buffer[i] = ' ';
 	}
 	
-	if(difficulty == 0){
-		for(int i = 1; i<=16; i++){
-			obstPosition = rand()%2;
+	if(difficulty == 0) {
+		for(int i = 1; i <= 16; i++) {
+			obstPosition = rand() % 2;
 			temp = (i*4)-1; // place obsticles at indexes 3, 7, 11, 15, ... , 59, 63
 			if(obstPosition == 0){
 				line1buffer[temp] = 'x'; // place an obsticle in the top line
@@ -258,8 +332,8 @@ void createGameMap(char** line1, char** line2, int difficulty){
 			}
 		}
 	} else if(difficulty == 1){
-		for(int i = 1; i<=8; i++){
-			obstPosition = rand()%2;
+		for(int i = 1; i <= 8; i++){
+			obstPosition = rand() % 2;
 			temp = (i*8)-1; // place obsticles at indexes 7, 15, ... , 55, 63
 			if(obstPosition == 0){
 				line1buffer[temp] = 'x';
@@ -268,8 +342,8 @@ void createGameMap(char** line1, char** line2, int difficulty){
 			}
 		}
 	} else if(difficulty == 2){
-		for(int i = 1; i<=4; i++){
-			obstPosition = rand()%2;
+		for(int i = 1; i <= 4; i++){
+			obstPosition = rand() % 2;
 			temp = (i*16)-1; // place obsticle at indexe 15, 31, 47, 63
 			if(obstPosition == 0){
 				line1buffer[temp] = 'x';
@@ -288,6 +362,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 	*line1 = line1buffer; // lines for carrying row of 16 characters
 	*line2 = line2buffer;
 }
+
 void Shift_LCD(int direction) {
 	if (direction == 0)
 		Write_Instr_LCD(0x18); // left
