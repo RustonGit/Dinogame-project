@@ -16,7 +16,7 @@ int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
 void updateGame(uint32_t , int*);
-void updateGameOver(int*);
+void updateGameOver(uint32_t, int*);
 void resetVars(void);
 void feed_LCD(char*, char*, int);
 void createGameMap(char**, char**, int);
@@ -27,7 +27,7 @@ void jump_Buzz(void);
 
 volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
 // Used to prevent initialization of certain variables multiple times in 1 run of the game
-volatile int initVarsWelcome = 1, initVarsButton = 1, initVarsGame = 1, initVarsGameOver = 1, initVarsGameMap = 1;
+int initVarsWelcome = 1, initVarsButton = 1, initVarsGame = 1, initVarsGameOver = 1, initVarsGameMap = 1, displayWelcomeText = 1;
 
 //Main code 
 int main(){
@@ -38,11 +38,8 @@ int main(){
   	Init_GPIO_Ports();
   	EXTI1_SW5_Init();
 
-  	char line1Chars[16] = {0}, line2Chars[16] = {0};
-  	char dino = '*', obstacle = '|';
-  	char* gameOver = "Sorry, you lost";
   	int difficulty; // int to say when to start the game and int for difficulty
-  	int gameState = 0; // 0:welcome 1:gameplay 2:gameover
+  	int gameState = 2; // 0:welcome 1:gameplay 2:gameover
 	int score = 0;
 
   	// https://www.geeksforgeeks.org/c/understanding-volatile-qualifier-in-c/
@@ -199,8 +196,8 @@ void updateGame(uint32_t now, int* difficulty) {
 	static int lastScreenShift = 0; // time variable to keep up with ticks
 	static int shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
 	static int start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
-	char *line1; // lines for carrying row of 16 characters
-	char *line2;
+	static char *line1; // lines for carrying row of 16 characters
+	static char *line2;
 	
 	if (initVarsGame == 1) {
 		lastScreenShift = 0; // time variable to keep up with ticks
@@ -231,7 +228,8 @@ void updateGame(uint32_t now, int* difficulty) {
 
 void updateGameOver(uint32_t now, int* score) {
 	static int goToStart;
-	static int displayFirstText, DisplaySecondText;
+	static int displayFirstText;
+	static int displaySecondText;
 	static uint32_t waitTime;
 	char* gameOver = "GAME OVER!!";
 	char* displayScore = "   Score: ";
@@ -240,7 +238,7 @@ void updateGameOver(uint32_t now, int* score) {
 	if (initVarsGameOver == 1) {
 		goToStart = 0;
 		displayFirstText = 1;
-		DisplaySecondText = 1;
+		displaySecondText = 1;
 		waitTime = now; // have to use static with these variables so we don't lose their value in each function call
 		initVarsGameOver = 0;
 	}
@@ -257,12 +255,13 @@ void updateGameOver(uint32_t now, int* score) {
 			Write_String_LCD(displayScore);
 			Write_Char_LCD(*score + 0x30);
 			Write_Instr_LCD(0xC0);
-			Write_Instr_LCD(startOver);
+			Write_String_LCD(startOver);
 			displaySecondText = 0;
 		}
-		if (now - waitTime >= 2000)
+		if (now - waitTime >= 2000){
 			resetVars();
 			displayWelcomeText = 1;
+		}
 	}
 }
 
@@ -296,15 +295,13 @@ void feed_LCD(char* line1, char* line2, int numShift){
   	for(int i = 0; i<16; i++){
 		char l1 = line1[i+numShift]; // places all characters in the current frame depending on which offset we are on
 		char l2 = line2[i+numShift];
-
-		if (i = 0) {
-			if (line1[numShift] == 'x') {
 				
 		Write_Instr_LCD(0x80 | i); // writes to top line
 		Write_Char_LCD(l1);
 	
 		Write_Instr_LCD(0xC0 | i); // writes to bottom line
 		Write_Char_LCD(l2);
+			
 	}
 }
 // this function might be wrong, keeps writing almost random letters for some reason
