@@ -23,7 +23,7 @@ void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_Init();
 void EXTI9_5_IRQHandler();
-void jump_Buzz();
+void jump_Buzz(void);
 
 volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
 // Used to prevent initialization of certain variables multiple times in 1 run of the game
@@ -67,6 +67,7 @@ int main(){
 					}	
 					else if(inputEvent == 3){
 						//3 is jump
+						jump_Buzz();
 					}
 	        	}
 	    		updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
@@ -78,6 +79,7 @@ int main(){
 	    }
 	}
 }
+
 // Turn buzzer on, after 500 ms turn off, last line of code as safegaurd
 void jump_Buzz(){
 	static int lastBuzzTime = 0;
@@ -88,6 +90,7 @@ void jump_Buzz(){
 	} 
 	GPIOC->ODR &= ~(1 << 9);
 }
+
 void Delay(unsigned int n){
 	int i;
 	if(n!=0) {
