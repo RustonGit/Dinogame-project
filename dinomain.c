@@ -15,11 +15,14 @@ void SystemClock_Config(void);
 int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
-void feed_LCD(char , char);
+void updateGame(uint32_t , int*);
+void feed_LCD(char , char, int);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_Init();
-void EXTI19_5_IRQHandler();
+void EXTI9_5_IRQHandler();
+
+  volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
 
 //Main code 
 int main(){
@@ -28,18 +31,18 @@ int main(){
   HAL_Init();
   SystemClock_Config();
   Init_GPIO_Ports();
+  EXTI1_SW5_Init();
 
   char line1Chars[16] = {0}, line2Chars[16] = {0};
   char dino = '*', obstacle = '|';
   char* gameOver = "Sorry, you lost";
   char* welcome = "Push to Start";
   char* difficultys = " 0=E 1=M 2=H ";
-  int start = 0;
   int difficulty; // int to say when to start the game and int for difficulty
-  int object;
-  int i;
-
   int gameState = 0; // 0:welcome 1:gameplay 2:gameover
+
+
+  // https://www.geeksforgeeks.org/c/understanding-volatile-qualifier-in-c/
 
   Write_String_LCD(welcome); // place welcome text on screen
   Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
@@ -56,7 +59,18 @@ while (1) { // start the gameplay loop
             break;
 
         case 1:
-            //updateGame(now);
+          if(inputEvent != 0){ // if there is an interupt, do it first
+						if(inputEvent == 1){
+						// 1 is pause
+						}	
+						else if(inputEvent == 2){
+						//2 is play
+						}	
+						else if(inputEvent == 3){
+						//3 is jump
+						}
+          }
+            updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
             break;
 
         // case 2:
@@ -76,54 +90,45 @@ void Delay(unsigned int n){
 //Interrupt initialization
 void EXTI1_SW5_Init(void){
   RCC->APB2ENR |= 0x00000001;
-  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-  SYSCFG->EXIT1CR[2] &= ~SYSCFG_EXTICR3_EXTI8_PB;
-  SYSCFG->EXIT1CR[2] |= SYSCFG_EXTICR3_EXTI8_PB;
-  EXTI1->RTSR |= (1 << 8);
-  NVIC->ISER[0U] = 1 << 23;
-  EXTI1->IMR |= (1 << 8);
+  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN; // turn on clock
+  SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI8;
+  SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI8_PB; // chooses the pin that triggers the interupt
+	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI9;
+	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI9_PB; // and another pin that triggers the same interupt so we can jump
+  EXTI->RTSR1 |= (1 << 8); // is just EXTI not EXTI1; choosing trigger type (rising edge)
+  NVIC->ISER[0U] |= (1 << 23); // If we don't use |= the other interupts will be removed; this enables the interrupts
+  EXTI->IMR1 |= (1 << 8); // the 1 goes with the IMR not the EXTI;  turns on the interupt on pin 8
+	EXTI->RTSR1 |= (1 << 9); // initialize interupt on pin 9
+	EXTI->IMR1  |= (1 << 9);
 }
-//Call to interrupt function
-void EXTI19_5_IRQHandler(void) {
-    if ((EXTI->PR & (1<<8)) == 0) {	// If SW5 is pressed, Pause
-	    //Clearing a flag
-	    EXTI->PR |= (1 << 8);
-	
-	    Delay(10); // Debouncing
-	    while((GPIOB->IDR&(1<<8)) != 0){ // Wait until pause is released
-	
-	    }
-	    Delay(10);
-		while((GPIOB->IDR&(1<<8)) == 0){ // Waiting for Button to be pressed Again (Play)
-			
-	    }
-		Delay(10);
-		while((GPIOB->IDR&(1<<8)) != 0){ // Wait until play is released
-	
-	    }
-		Delay(500);
+//Call to interrupt function (events: pause:1, play:2, jump:3)
+void EXTI9_5_IRQHandler(void) {
+    if ((EXTI->PR1 & (1<<8)) != 0) {	// If SW5 is pressed, switch to the opposite (play vs pause) 1 is pause, 2 is play
+    EXTI->PR1 |= (1 << 8);
+    if (inputEvent != 1)
+      inputEvent = 1; // if not paused, pause
+    else
+      inputEvent = 2; // if paused play
 	}
-	else { // If SW4 is pressed, Jump
-		Write_Instr_LCD(0x80);
-	    Write_Char_LCD('*');
-	
-	    //Clearing a flag
-	    EXTI->PR |= (1 << 9);
-		Delay(10);
-		while((GPIOB->IDR & (1<<9)) != 0){ // Wait until pause is released
-	
-	    }
-		Delay(10);
+	else if ((EXTI->PR1 & (1<<9)) != 0){ // If SW4 is pressed and is not paused, Jump
+    //Clearing a flag
+    EXTI->PR1 |= (1 << 9);
+    inputEvent = 3;
 	}
 }
+
 // game states:
 int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
   static uint32_t lastShift; // have to use static with these variables so we don't lose their value in each function call
 	static int direction = 0;
   static int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
-
-  if (now - lastShift >= 400){// if there has been more than 400 ticks since the last shift
-    lastShift = now; // only update last shift per shift so we can continue to poll every 400 ticks
+	
+	// The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
+	// we can go into the function and shift again, this is required since we are going through this function every tick.
+	// This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
+	// in other functions/ parts of thegame
+  if (now - lastShift >= 400){
+    lastShift = now; // note you must update now each time the if statement becomes true so we only go through every 400 ticks
 		if ((direction == 0)) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
 				Shift_LCD(direction); // Shifts Top Line 1
@@ -144,7 +149,7 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 			}
 		}
 	}
-	
+
   if(buttonPress(11) !=0){ // if there is a button press we need to go to the next state
     *(difficulty) = 0; //  passing difficulty by reference since we can not return more than 1 value
     Write_Instr_LCD(0x01); // clear screen to prepare for next state
@@ -161,6 +166,31 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 	return 0; // return welcome game state if we havent changed
 }
 
+// this game state will shift the screen to move objects toward the player jumping and playing/pausing
+// will be implemeted in main since we don't want to clutter up this function any more than we have to
+// too much in one function will slow down the game greatly (because it gets ran every tick)
+void updateGame(uint32_t now, int* difficulty){
+	static int lastScreenShift = 0; // time variable to keep up with ticks
+	static int shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
+	static char *line1; // lines for carrying row of 16 characters
+	static char *line2;
+	if (shiftKey >= 15){ // every 16 screen shifts
+		shiftKey = 0;
+		Write_Instr_LCD(0x01);// clear the screen
+		for(int i = 0; i <16; i++) // shift screen back
+			Write_Instr_LCD(0x1C);
+		createGameMap(&line1, &line2, *(difficulty)); // create a new map to be displayed
+	}
+	if (HAL_GetTick() - lastScreenShift >= 500){ // same delay logic as in updateWelcome state
+		lastScreenShift = now;
+			feed_LCD(line1[shiftKey], line2[shiftKey], shiftKey);
+		if(shiftKey <= 15)	
+			shiftKey++; // shift 15 times
+		Write_Instr_LCD(0x18);
+	}
+	
+}
+
 // function to make button presses simpler with debouncing active
 int buttonPress(uint8_t buttonNum){
   static int lastPressTime = 0;
@@ -174,16 +204,17 @@ int buttonPress(uint8_t buttonNum){
 	return 0; // if not pressed return 0
 }
 
-void feed_LCD(char char1, char char2){
+void feed_LCD(char char1, char char2, int numShift){
   
-    Write_Instr_LCD(0x80 | 15);
+    Write_Instr_LCD(0x80 | (15+numShift)); // add numshift since shifting the display also shifts cursor positioon
     Delay(1);
     Write_Char_LCD(char1);
     Delay(1);
-    Write_Instr_LCD(0xC0 | 15);
+    Write_Instr_LCD(0xC0 | (15+numShift));
     Delay(1);
     Write_Char_LCD(char2);
 }
+// this function might be wrong, keeps writing almost random letters for some reason
 void createGameMap(char** line1, char** line2, int spacing){
 	int obstPosition = rand()%2; // obst position 1 = up, 0 = down;
 	if(spacing == 4){
@@ -415,9 +446,9 @@ void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
       GPIOB->ODR|=(1<<5);
     /*	Sclck */
     GPIOA->ODR&=~(1<<5);
-    HAL_Delay(1);
+    Delay(1);
     GPIOA->ODR|=(1<<5);
-    HAL_Delay(1);
+    Delay(1);
     mask=mask>>1;
   }
 
