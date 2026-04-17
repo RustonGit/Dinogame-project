@@ -16,7 +16,7 @@ int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
 void updateGame(uint32_t , int*);
-void feed_LCD(char , char, int);
+void feed_LCD(char*, char*, int);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_Init();
@@ -129,21 +129,21 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 	// in other functions/ parts of thegame
   if (now - lastShift >= 400){
     lastShift = now; // note you must update now each time the if statement becomes true so we only go through every 400 ticks
-		if ((direction == 0)) { // If shifting right
+		if ((direction == 1)) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
 				Shift_LCD(direction); // Shifts Top Line 1
 				shiftChecker++; // Increments the checker
 			} else {
-				direction = 1; // Changes direction to shifting left
+				direction = 0; // Changes direction to shifting left
 				Shift_LCD(direction); // Shifts Top Line Left 1
 				shiftChecker--; // Decrements the checker
 			}
-		} else if ((direction == 1)) {
+		} else if ((direction == 0)) {
       if (shiftChecker > 0){
 				Shift_LCD(direction);
 				shiftChecker--;
       } else {
-				direction = 0;
+				direction = 1;
 				Shift_LCD(direction);
 				shiftChecker++;
 			}
@@ -169,26 +169,30 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 // this game state will shift the screen to move objects toward the player jumping and playing/pausing
 // will be implemeted in main since we don't want to clutter up this function any more than we have to
 // too much in one function will slow down the game greatly (because it gets ran every tick)
+
 void updateGame(uint32_t now, int* difficulty){
 	static int lastScreenShift = 0; // time variable to keep up with ticks
 	static int shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
+	static int start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
 	static char *line1; // lines for carrying row of 16 characters
 	static char *line2;
-	if (shiftKey >= 15){ // every 16 screen shifts
-		shiftKey = 0;
-		Write_Instr_LCD(0x01);// clear the screen
-		for(int i = 0; i <16; i++) // shift screen back
-			Write_Instr_LCD(0x1C);
-		createGameMap(&line1, &line2, *(difficulty)); // create a new map to be displayed
-	}
-	if (HAL_GetTick() - lastScreenShift >= 500){ // same delay logic as in updateWelcome state
-		lastScreenShift = now;
-			feed_LCD(line1[shiftKey], line2[shiftKey], shiftKey);
-		if(shiftKey <= 15)	
-			shiftKey++; // shift 15 times
-		Write_Instr_LCD(0x18);
+	
+	if (start == 0){ // make sure we have a map first
+    createGameMap(&line1, &line2, *difficulty);
+		start = 1;
 	}
 	
+	if (now - lastScreenShift >= 300){ // shifting the indexes onto the screen
+		lastScreenShift = now;
+		
+		feed_LCD(line1, line2, shiftKey); // shift screen
+		
+		shiftKey++; // update the offset to move the characters
+		if(shiftKey >= 48){
+		shiftKey = 0;
+			createGameMap(&line1, &line2, *difficulty);
+		}
+	}
 }
 
 // function to make button presses simpler with debouncing active
@@ -204,61 +208,79 @@ int buttonPress(uint8_t buttonNum){
 	return 0; // if not pressed return 0
 }
 
-void feed_LCD(char char1, char char2, int numShift){
-  
-    Write_Instr_LCD(0x80 | (15+numShift)); // add numshift since shifting the display also shifts cursor positioon
-    Delay(1);
-    Write_Char_LCD(char1);
-    Delay(1);
-    Write_Instr_LCD(0xC0 | (15+numShift));
-    Delay(1);
-    Write_Char_LCD(char2);
+// will write out a single frame of the lcd depending on how shifted we are
+void feed_LCD(char* line1, char* line2, int numShift){
+  for(int i = 0; i<16; i++){
+	char l1 = line1[i+numShift]; // places all characters in the current frame depending on which offset we are on
+	char l2 = line2[i+numShift];
+
+	Write_Instr_LCD(0x80 | i); // writes to top line
+	Write_Char_LCD(l1);
+
+	Write_Instr_LCD(0xC0 | i); // writes to bottom line
+	Write_Char_LCD(l2);
+	}
+
 }
 // this function might be wrong, keeps writing almost random letters for some reason
-void createGameMap(char** line1, char** line2, int spacing){
+void createGameMap(char** line1, char** line2, int difficulty){
 	int obstPosition = rand()%2; // obst position 1 = up, 0 = down;
-	if(spacing == 4){
-		for(int i = 0; i<4; i++){
-			*(line1) = "   "; // start by creating the first 3 spaces
+	int temp = 1;
+	static char line1buffer[64]; // creates a register to hold a large game map so we don't have to create a new map so often
+	static char line2buffer[64];
+	static int start;
+	
+	for(int i = 0; i<64; i++){
+		line1buffer[i] = ' '; // filling entire buffer with blanks
+		line2buffer[i] = ' ';
+	}
+	
+	if(difficulty == 0){
+		for(int i = 1; i<=16; i++){
+			obstPosition = rand()%2;
+			temp = (i*4)-1; // place obsticles at indexes 3, 7, 11, 15, ... , 59, 63
 			if(obstPosition == 0){
-				strcat(*(line1), "x");
-				strcat(*(line2), " ");
+				line1buffer[temp] = 'x'; // place an obsticle in the top line
 			} else {
-				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
-				strcat(*(line2), "x");
+				line2buffer[temp] = 'x'; // place an obsticle in the bottom line
+			}
+		}
+	} else if(difficulty == 1){
+		for(int i = 1; i<=8; i++){
+			obstPosition = rand()%2;
+			temp = (i*8)-1; // place obsticles at indexes 7, 15, ... , 55, 63
+			if(obstPosition == 0){
+				line1buffer[temp] = 'x';
+			} else {
+				line2buffer[temp] = 'x';
+			}
+		}
+	} else if(difficulty == 2){
+		for(int i = 1; i<=4; i++){
+			obstPosition = rand()%2;
+			temp = (i*16)-1; // place obsticle at indexe 15, 31, 47, 63
+			if(obstPosition == 0){
+				line1buffer[temp] = 'x';
+			} else {
+				line2buffer[temp] = 'x';
 			}
 		}
 	}
-	if(spacing == 8){
-		for(int i = 0; i<2; i++){
-			*(line1) = "       "; // start by creating the first 7 spaces
-			if(obstPosition == 0){
-				strcat(*(line1), "x");
-				strcat(*(line2), " ");
-			} else {
-				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
-				strcat(*(line2), "x");
-			}
+	if (start == 0){ // on the first run through, we don't want to spawn any obsticles on the player so we delete the first 8 obsticles
+		for(int i = 0; i<8; i++){
+			line1buffer[i] = ' '; 
+			line2buffer[i] = ' ';
 		}
+		start = 1; // make the first frame nothing
 	}
-	if(spacing == 16){
-		for(int i = 0; i<1; i++){
-			*(line1) = "               "; // start by creating the first 7 spaces
-			if(obstPosition == 0){
-				strcat(*(line1), "x");
-				strcat(*(line2), " ");
-			} else {
-				strcat(*(line1), " ");// appends str with suffix: strcat(str, suffix);
-				strcat(*(line2), "x");
-			}
-		}
-	}
+	*line1 = line1buffer; // lines for carrying row of 16 characters
+	*line2 = line2buffer;
 }
 void Shift_LCD(int direction) {
 	if (direction == 0)
-		Write_Instr_LCD(0x1C);
+		Write_Instr_LCD(0x18); // left
 	if (direction == 1)
-		Write_Instr_LCD(0x18);
+		Write_Instr_LCD(0x1C); // right
 }
 
 void Init_GPIO_Ports(){
