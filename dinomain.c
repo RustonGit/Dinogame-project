@@ -16,8 +16,8 @@ int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
 void updateGame(uint32_t , int*);
-void updateGameOver(uint32_t, int*);
-void resetVars(void);
+int updateGameOver(uint32_t, int*);
+int resetVars(void);
 void feed_LCD(char*, char*, int);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
@@ -71,7 +71,7 @@ int main(){
 	            break;
 	
 	        case 2:
-	        	updateGameOver(now, &score);
+	        	gameState = updateGameOver(now, &score);
 	        	break;
 	    }
 	}
@@ -139,10 +139,10 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 		initVarsWelcome = 0;
 	}
 	
-	// The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
-	// we can go into the function and shift again, this is required since we are going through this function every tick.
-	// This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
-	// in other functions/ parts of thegame
+	/*The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
+	  we can go into the function and shift again, this is required since we are going through this function every tick.
+	  This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
+	  in other functions/ parts of the game*/
   	if (displayWelcomeText == 1) {
 		Write_String_LCD(welcome); // place welcome text on screen
   		Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
@@ -188,9 +188,11 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 	return 0; // return welcome game state if we havent changed
 }
 
-// this game state will shift the screen to move objects toward the player jumping and playing/pausing
-// will be implemeted in main since we don't want to clutter up this function any more than we have to
-// too much in one function will slow down the game greatly (because it gets ran every tick)
+/*
+   this game state will shift the screen to move objects toward the player jumping and playing/pausing
+   will be implemeted in main since we don't want to clutter up this function any more than we have to
+         too much in one function will slow down the game greatly (because it gets ran every tick)
+*/
 
 void updateGame(uint32_t now, int* difficulty) {
 	static int lastScreenShift = 0; // time variable to keep up with ticks
@@ -226,16 +228,20 @@ void updateGame(uint32_t now, int* difficulty) {
 	}
 }
 
-void updateGameOver(uint32_t now, int* score) {
-	static int goToStart;
-	static int displayFirstText;
+/*
+	This game state will indicate the game is over and show the score that was reached for that run through of the game.
+	It will also reset the game to the beginning of the game at the Welcome Screen.
+*/
+
+int updateGameOver(uint32_t now, int* score) {
+	static int displayFirstText; // Using two integers to prevent text from writing to LCD multiple times
 	static int displaySecondText;
-	static uint32_t waitTime;
-	char* gameOver = "GAME OVER!!";
+	static uint32_t waitTime; // Using integer to keep track of how long to wait to display next text
+	char* gameOver = "GAME OVER!!"; // Using char* to write Game Over text to LCD
 	char* displayScore = "   Score: ";
 	char* startOver = "   Try Again??";
 	
-	if (initVarsGameOver == 1) {
+	if (initVarsGameOver == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		goToStart = 0;
 		displayFirstText = 1;
 		displaySecondText = 1;
@@ -243,34 +249,39 @@ void updateGameOver(uint32_t now, int* score) {
 		initVarsGameOver = 0;
 	}
 	
-	if (displayFirstText == 1) {
+	if (displayFirstText == 1) { // If first time in the function, Disable interrupts and write Game Over to LCD
 		EXTI->IMR1  &= ~(1 << 8);
 		EXTI->IMR1  &= ~(1 << 9);
 		Write_Instr_LCD(0x01);
 		Write_String_LCD(gameOver);
 		displayFirstText = 0;
 	}
-	if (now - waitTime >= 1000) {
-		if (displaySecondText == 1) {
+	if (now - waitTime >= 1000) { // Waiting for clock to increment by 1000 to display next text
+		if (displaySecondText == 1) { // If first time in if statement, write score and prompt to play again
+			Write_Instr_LCD(0x80);
 			Write_String_LCD(displayScore);
 			Write_Char_LCD(*score + 0x30);
 			Write_Instr_LCD(0xC0);
 			Write_String_LCD(startOver);
 			displaySecondText = 0;
 		}
-		if (now - waitTime >= 2000){
-			resetVars();
-			displayWelcomeText = 1;
+		if (now - waitTime >= 2000) { // Waiting for clock to increment by 2000 to go back to welcome screen
+			score = 0;
+			return resetVars(); // Setting new game state to 0 and Updating all global variables to initial values
 		}
 	}
+	return 2; // Staying in GameOver state
 }
 
-void resetVars() {
+// This function puts all global variables that need to be reset to their starting values to be able to run the game again.
+int resetVars() {
 	initVarsWelcome = 1;
 	initVarsButton = 1;
 	initVarsGame = 1;
 	initVarsGameOver = 1;
 	initVarsGameMap = 1;
+	displayWelcomeText = 1;
+	return 0;
 }
 
 // function to make button presses simpler with debouncing active
