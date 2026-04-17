@@ -21,6 +21,7 @@ void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_Init();
 void EXTI9_5_IRQHandler();
+void jump_Buzz();
 
 volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
 
@@ -68,6 +69,8 @@ int main(){
 				}	
 				else if(inputEvent == 3){
 				//3 is jump
+				//When Jump is pressed during program buzz for 500ms
+					jump_Buzz();
 				}
         	}
     		updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
@@ -79,7 +82,16 @@ int main(){
     }
 }
 }
-
+// Turn buzzer on, after 500 ms turn off, last line of code as safegaurd
+void jump_Buzz(){
+	static int lastBuzzTime = 0;
+	GPIOC->ODR |= (1 << 9);
+	if (HAL_GetTick() - lastBuzzTime >= 500){
+      	lastBuzzTime = HAL_GetTick(); // set the last press time every time it is pressed so the if statement works
+		GPIOC->ODR &= ~(1 << 9);
+	} 
+	GPIOC->ODR &= ~(1 << 9);
+}
 void Delay(unsigned int n){
 	int i;
 	if(n!=0) {
@@ -104,6 +116,7 @@ void EXTI1_SW5_Init(void){
 //Call to interrupt function (events: pause:1, play:2, jump:3)
 void EXTI9_5_IRQHandler(void) {
     if ((EXTI->PR1 & (1<<8)) != 0) {	// If SW5 is pressed, switch to the opposite (play vs pause) 1 is pause, 2 is play
+		
     	EXTI->PR1 |= (1 << 8);
     if (inputEvent != 1)
       	inputEvent = 1; // if not paused, pause
