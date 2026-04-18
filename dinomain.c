@@ -15,13 +15,13 @@ void SystemClock_Config(void);
 int buttonPress(uint8_t);
 void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
-void updateGame(uint32_t , int*);
+void updateGame(uint32_t , int*, int*);
 int updateGameOver(uint32_t, int*);
 int resetVars(void);
 void feed_LCD(char*, char*, int);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
-void EXTI1_SW5_Init();
+void EXTI1_SW5_SW4_Init();
 void EXTI9_5_IRQHandler();
 void jump_Buzz(void);
 
@@ -36,11 +36,12 @@ int main(){
   	HAL_Init();
   	SystemClock_Config();
   	Init_GPIO_Ports();
-  	EXTI1_SW5_Init();
+  	EXTI1_SW5_SW4_Init();
 
   	int difficulty; // int to say when to start the game and int for difficulty
-  	int gameState = 2; // 0:welcome 1:gameplay 2:gameover
+  	int gameState = 0; // 0:welcome 1:gameplay 2:gameover
 	int score = 0;
+	int partialScore1, partialScore2, partialScore3, partialScore4; // Using integers for displaying the score on the 7 Segment Displays
 
   	// https://www.geeksforgeeks.org/c/understanding-volatile-qualifier-in-c/
 
@@ -56,18 +57,41 @@ int main(){
 	
 	        case 1:
 	          	if(inputEvent != 0){ // if there is an interrupt, do it first
-					if(inputEvent == 1){
+					if(inputEvent == 1) { // Displays Score on Seven Segment when the Game is Paused
 						// 1 is pause
-					}	
-					else if(inputEvent == 2){
-						//2 is play
-					}	
-					else if(inputEvent == 3){
+						if (score <= 9) // Displays the Score if there is only 1 digit
+							Write_7Seg(4, score);
+						else if (score >= 10 && score <= 99) { // Displays the Score if there is 2 digits
+							partialScore1 = score % 10;
+							Write_7Seg(4, partialScore1);
+							partialScore2 = (score / 10) % 10;
+							Write_7Seg(3, partialScore2);
+						} else if (score >= 100 && score <= 999) { // Displays the Score if there is 3 digits
+							partialScore1 = score % 10;
+							Write_7Seg(4, partialScore1);
+							partialScore2 = (score / 10) % 10;
+							Write_7Seg(3, partialScore2);
+							partialScore3 = (score / 100) % 10;
+							Write_7Seg(2, partialScore3);
+						} else if (score >= 1000 && score <= 9999) { // Displays the Score if there is 4 digits
+							partialScore1 = score % 10;
+							Write_7Seg(4, partialScore1);
+							partialScore2 = (score / 10) % 10;
+							Write_7Seg(3, partialScore2);
+							partialScore3 = (score / 100) % 10;
+							Write_7Seg(2, partialScore3);
+							partialScore4 = (score / 1000) % 10;
+							Write_7Seg(1, partialScore4);
+						}
+					} else if(inputEvent == 2) { // Disables all of the Seven Segment Displays and gets back into the game
+						Write_7Seg(0, 0);
+						inputEvent = 0;
+					} else if(inputEvent == 3) {
 						//3 is jump
 						jump_Buzz();
 					}
-	        	}
-	    		updateGame(now, &difficulty); // every tick run the update game loop while we have not finished the game
+	        	} else
+					updateGame(now, &difficulty, &score); // every tick run the update game loop while we have not finished the game
 	            break;
 	
 	        case 2:
@@ -95,8 +119,9 @@ void Delay(unsigned int n){
 	        for (i = 0; i < 300; i++) ;
 	}
 }
+
 //Interrupt initialization
-void EXTI1_SW5_Init(void){
+void EXTI1_SW5_SW4_Init(void){
   	RCC->APB2ENR |= 0x00000001;
   	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN; // turn on clock
   	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI8;
@@ -107,10 +132,10 @@ void EXTI1_SW5_Init(void){
   	NVIC->ISER[0U] |= (1 << 23); // If we don't use |= the other interupts will be removed; this enables the interrupts
 	EXTI->RTSR1 |= (1 << 9); // initialize interupt on pin 9
 }
+
 //Call to interrupt function (events: pause:1, play:2, jump:3)
 void EXTI9_5_IRQHandler(void) {
     if ((EXTI->PR1 & (1<<8)) != 0) {	// If SW5 is pressed, switch to the opposite (play vs pause) 1 is pause, 2 is play
-		
     	EXTI->PR1 |= (1 << 8);
     if (inputEvent != 1)
       	inputEvent = 1; // if not paused, pause
@@ -194,7 +219,7 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
          too much in one function will slow down the game greatly (because it gets ran every tick)
 */
 
-void updateGame(uint32_t now, int* difficulty) {
+void updateGame(uint32_t now, int* difficulty, int* score) {
 	static int lastScreenShift = 0; // time variable to keep up with ticks
 	static int shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
 	static int start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
@@ -210,7 +235,7 @@ void updateGame(uint32_t now, int* difficulty) {
 	
 	if (start == 0) { // make sure we have a map first
     	createGameMap(&line1, &line2, *difficulty);
-		EXTI->IMR1  |= (1 << 8);
+		EXTI->IMR1  |= (1 << 8); // Enabling Interrupts once the game has started
 		EXTI->IMR1  |= (1 << 9);
 		start = 1;
 	}
@@ -219,6 +244,7 @@ void updateGame(uint32_t now, int* difficulty) {
 		lastScreenShift = now;
 		
 		feed_LCD(line1, line2, shiftKey); // shift screen
+		*score++;
 		
 		shiftKey++; // update the offset to move the characters
 		if (shiftKey >= 48) {
@@ -312,9 +338,9 @@ void feed_LCD(char* line1, char* line2, int numShift){
 	
 		Write_Instr_LCD(0xC0 | i); // writes to bottom line
 		Write_Char_LCD(l2);
-			
 	}
 }
+
 // this function might be wrong, keeps writing almost random letters for some reason
 void createGameMap(char** line1, char** line2, int difficulty){
 	static char line1buffer[64]; // creates a register to hold a large game map so we don't have to create a new map so often
