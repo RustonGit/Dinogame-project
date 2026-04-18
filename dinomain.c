@@ -1,6 +1,7 @@
 #include "main.h"
 #include <stdlib.h> // import for rand()
 #include <string.h>
+#include <stdio.h> // To use sprintf for updateGameOver
 
 void Delay(unsigned int);
 void Init_GPIO_Ports(void);
@@ -139,8 +140,8 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
  	static uint32_t lastShift;
 	static int direction;
 	static int shiftChecker;
-	char* welcome = "Push to Start";
-  	char* difficultys = " 0=E 1=M 2=H ";
+	char* welcome = "Push to Start   "; //Added spaces to get rid of extra characters
+  	char* difficultys = " 0=E 1=M 2=H    "; //Added spaces to get rid of extra characters
 	
 	if (initVarsWelcome == 1) {
 		lastShift = 0; // have to use static with these variables so we don't lose their value in each function call
@@ -255,7 +256,8 @@ int updateGameOver(uint32_t now, int* score) {
 	static uint32_t waitTime; // Using integer to keep track of how long to wait to display next text
 	char* gameOver = "GAME OVER!!"; // Using char* to write Game Over text to LCD
 	char* displayScore = "   Score: ";
-	char* startOver = "   Try Again??";
+	char* startOver = "   Try Again??  "; //Added spaces to get rid of extra characters
+	char buffer[6]; // Score is not a single digit, so create a string
 	
 	if (initVarsGameOver == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		//goToStart = 0;
@@ -276,7 +278,8 @@ int updateGameOver(uint32_t now, int* score) {
 		if (displaySecondText == 1) { // If first time in if statement, write score and prompt to play again
 			Write_Instr_LCD(0x80);
 			Write_String_LCD(displayScore);
-			Write_Char_LCD(*score + 0x30);
+			sprintf(buffer, "%d", *score); //Print *score to a string since score is not a single digit
+			Write_String_LCD(buffer);
 			Write_Instr_LCD(0xC0);
 			Write_String_LCD(startOver);
 			displaySecondText = 0;
