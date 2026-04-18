@@ -91,13 +91,10 @@ int main(){
 
 // Turn buzzer on, after 500 ms turn off, last line of code as safegaurd
 void jump_Buzz(int now){
-	static int lastBuzzTime = 0;
-	GPIOC->ODR |= (1 << 9);
-	if (now - lastBuzzTime >= 500){
-      	lastBuzzTime = now; // set the last press time every time it is pressed so the if statement works
+	for(int i = 0; i < 150000; i++){
+		GPIOC->ODR |= (1 << 9);
 		GPIOC->ODR &= ~(1 << 9);
 	}
-	GPIOC->ODR &= ~(1 << 9);
 }
 
 void Delay(unsigned int n){
