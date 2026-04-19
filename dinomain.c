@@ -42,9 +42,9 @@ int main(){
 
   	int difficulty; // int to say when to start the game and int for difficulty
   	int gameState = 0; // 0:welcome 1:gameplay 2:gameover
-		int score = 0;
+	int score = 0;
     int lastPressTime = 0; // used for debouncing
-		int jump = 0;
+	int jump = 0;
 	// Using integers for displaying the score on the 7 Segment Displays
 
   	// https://www.geeksforgeeks.org/c/understanding-volatile-qualifier-in-c/
@@ -56,27 +56,23 @@ int main(){
 	    switch(gameState) { // create a switch statement to look for and run which state we are in
 	
 	        case 0:
-						score = 0; 
-						gameState = updateWelcome(now, &difficulty);
-						break;
+				score = 0; 
+				gameState = updateWelcome(now, &difficulty);
+				break;
 	
 	        case 1:
-					if(inputEvent != 0){ // if there is an interrupt, do it first
-						
-						if(inputEvent == 1) { // Displays Score on Seven Segment when the Game is Paused
-                // since we cannot use delay with these functions (blocks main loop from running for a bit) we must use the clock again here to debounce
-                if (now - lastPressTime >= 20){
-                  lastPressTime = now; // set the last press time every time it is pressed so the if statement works
-                }
-                
-							displayScore(score);
+				if(inputEvent != 0){ // if there is an interrupt, do it first	
+					if(inputEvent == 1) { // Displays Score on Seven Segment when the Game is Paused
+                		// since we cannot use delay with these functions (blocks main loop from running for a bit) we must use the clock again here to debounce
+		                if (now - lastPressTime >= 20)
+		                  lastPressTime = now; // set the last press time every time it is pressed so the if statement works
+						displayScore(score);
 					} else if(inputEvent == 2) { // Disables all of the Seven Segment Displays and gets back into the game
 						Write_7Seg(0, 0);
 						inputEvent = 0;
-					} else if(inputEvent == 3) {
-						//3 is jump
+					} else if(inputEvent == 3) { // Sets the character to jump when we update the game in updateGame
 						jump = 1;
-						jump_Buzz();
+						jump_Buzz(); // Activates the buzzer to indicate that the character is jumping
 						inputEvent = 0;
 					}
 	        	} else
@@ -84,7 +80,7 @@ int main(){
 	            break;
 	
 	        case 2:
-	        	gameState = updateGameOver(now, &score);
+	        	gameState = updateGameOver(now, &score); // Every tick run the update game over loop while getting ready to go back to welcome screen
 	        	break;
 	    }
 	}
@@ -92,17 +88,18 @@ int main(){
 
 // Turn buzzer on, after 50 ms turn off, last line of code as safegaurd
 void jump_Buzz(){
-	for(int i = 0; i < 15000; i++){
+	for(int i = 0; i < 15000; i++) {
 		GPIOC->ODR |= (1 << 9);
 		GPIOC->ODR &= ~(1 << 9);
 	}
 }
 
+// Acts as a function to wait a specified amount of time before leaving to go back to where it was called from
 void Delay(unsigned int n){
 	int i;
 	if(n!=0) {
 	    for (; n > 0; n--)
-	        for (i = 0; i < 300; i++) ;
+	        for (i = 0; i < 300; i++);
 	}
 }
 
@@ -111,31 +108,34 @@ void EXTI1_SW5_SW4_Init(void){
   	RCC->APB2ENR |= 0x00000001;
   	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN; // turn on clock
   	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI8;
-  	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI8_PB; // chooses the pin that triggers the interupt
+  	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI8_PB; // chooses the pin that triggers the interrupt
 	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI9;
-	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI9_PB; // and another pin that triggers the same interupt so we can jump
+	SYSCFG->EXTICR[2] |= SYSCFG_EXTICR3_EXTI9_PB; // and another pin that triggers the same interrupt so we can jump
   	EXTI->RTSR1 |= (1 << 8); // is just EXTI not EXTI1; choosing trigger type (rising edge)
-  	NVIC->ISER[0U] |= (1 << 23); // If we don't use |= the other interupts will be removed; this enables the interrupts
-	EXTI->RTSR1 |= (1 << 9); // initialize interupt on pin 9
+  	NVIC->ISER[0U] |= (1 << 23); // If we don't use |= the other interrupts will be removed; this enables the interrupts
+	EXTI->RTSR1 |= (1 << 9); // initialize interrupt on pin 9
 }
 
-//Call to interrupt function (events: pause:1, play:2, jump:3)
+//Call to interrupt function (events: pause:1, play:2, jump:3) whenever interrupt occurs
 void EXTI9_5_IRQHandler(void) {
-    if ((EXTI->PR1 & (1<<8)) != 0) {	// If SW5 is pressed, switch to the opposite (play vs pause) 1 is pause, 2 is play
-    	EXTI->PR1 |= (1 << 8); // clear flag
-    if (inputEvent != 1)
-      	inputEvent = 1; // if not paused, pause
-    else
-      	inputEvent = 2; // if paused play
+    if ((EXTI->PR1 & (1<<8)) != 0) { // If SW5 is pressed, switch to the opposite (play vs pause) 1 is pause, 2 is play
+    	EXTI->PR1 |= (1 << 8); // Clearing Pending Flag
+	    if (inputEvent != 1)
+	      	inputEvent = 1; // if not paused, pause
+	    else
+	      	inputEvent = 2; // if paused play
 	}
 	else if ((EXTI->PR1 & (1<<9)) != 0){ // If SW4 is pressed and is not paused, Jump
-    //Clearing a flag
-    	EXTI->PR1 |= (1 << 9);
+    	EXTI->PR1 |= (1 << 9); // Clearing Pending Flag
     	inputEvent = 3;
 	}
 }
 
-// game states:
+/*
+	This function displays the welcome text to the LCD and shifts it left and right.
+	This occurs until the user decides the difficulty of the game based on the given prompt.
+	Once difficulty is decided, it change gameState to 1 for the game being in progress.
+*/
 int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
  	static uint32_t lastShift;
 	static int direction;
@@ -143,55 +143,59 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 	char* welcome = "Push to Start   "; //Added spaces to get rid of extra characters
   	char* difficultys = " 0=E 1=M 2=H    "; //Added spaces to get rid of extra characters
 	
-	if (initVarsWelcome == 1) {
+	if (initVarsWelcome == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		lastShift = 0; // have to use static with these variables so we don't lose their value in each function call
 		direction = 0;
   		shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
 		initVarsWelcome = 0;
 	}
-	
-	/*The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
-	  we can go into the function and shift again, this is required since we are going through this function every tick.
-	  This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
-	  in other functions/ parts of the game*/
-  	if (displayWelcomeText == 1) {
+
+  	if (displayWelcomeText == 1) { // Write the welcome text to LCD if it is the first time entering the function in the current runthrough of the game
 		Write_String_LCD(welcome); // place welcome text on screen
   		Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
   		Write_String_LCD(difficultys);
 		displayWelcomeText = 0;
 	}
+
+	/*
+	  The below if statement is basically a delay, if the current tick - the last tick we shifted is greater than 500 ticks
+	  we can go into the function and shift again, this is required since we are going through this function every tick.
+	  This removes the requirement of a delay which would mess up our timing/tick rate since this logic is also used 
+	  in other functions/ parts of the game
+	*/
+	
 	if (now - lastShift >= 400) {
 	    lastShift = now; // note you must update now each time the if statement becomes true so we only go through every 400 ticks
 		if ((direction == 1)) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
-				Shift_LCD(direction); // Shifts Top Line 1
+				Shift_LCD(direction); // Shifts LCD Text Right 1
 				shiftChecker++; // Increments the checker
 			} else {
 				direction = 0; // Changes direction to shifting left
-				Shift_LCD(direction); // Shifts Top Line Left 1
+				Shift_LCD(direction); // Shifts LCD Text Left 1
 				shiftChecker--; // Decrements the checker
 			}
-		} else if ((direction == 0)) {
-	    	if (shiftChecker > 0) {
-				Shift_LCD(direction);
-				shiftChecker--;
+		} else if ((direction == 0)) { // If Shifting left
+	    	if (shiftChecker > 0) { // Occurs while shift is possible
+				Shift_LCD(direction); // Shifts LCD Text Left 1
+				shiftChecker--; // Decrements the checker
 	      	} else {
-				direction = 1;
-				Shift_LCD(direction);
-				shiftChecker++;
+				direction = 1; // Changes direction to shifting right
+				Shift_LCD(direction); // Shifts LCD Text Right 1
+				shiftChecker++; // Increments the checker
 			}
 		}
 	}
 
-  	if(buttonPress(11) !=0){ // if there is a button press we need to go to the next state
+  	if(buttonPress(11) !=0){ // If SW2 is pressed, change difficulty to 0 and Gamestate to 1
     	*(difficulty) = 0; //  passing difficulty by reference since we can not return more than 1 value
     	Write_Instr_LCD(0x01); // clear screen to prepare for next state
 		return 1; // return gameplay state if we see a button press
-  	} else if(buttonPress(10)!=0){
+  	} else if(buttonPress(10)!=0){ // If SW3 is pressed, change difficulty to 1 and Gamestate to 1
     	*(difficulty) = 1;
     	Write_Instr_LCD(0x01);
     	return 1;
-  	} else if(buttonPress(9) !=0){
+  	} else if(buttonPress(9) !=0) { // If SW4 is pressed, change difficulty to 2 and Gamestate to 1
     	*(difficulty) = 2;
     	Write_Instr_LCD(0x01);
     	return 1;
@@ -213,7 +217,7 @@ int updateGame(uint32_t now, int* difficulty, int *jump, int* score) {
 	static char *line1; // lines for carrying row of 16 characters
 	static char *line2;
 	
-	if (initVarsGame == 1) {
+	if (initVarsGame == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		lastScreenShift = 0; // time variable to keep up with ticks
 		shiftKey = 0; // need a place holder to tell when to shift indexer to tell where we are in the state
 		start = 0; // notice static modifier, this mean the variable will stay the same throughout function calls, the "= 0" is only valid for the first run through
@@ -246,7 +250,7 @@ int updateGame(uint32_t now, int* difficulty, int *jump, int* score) {
 			shiftKey = 0;
 			createGameMap(&line1, &line2, *difficulty);
 		}
-		if (lost == 1)
+		if (lost == 1) // If feedLCD updates that the player lost, go to gameState 2
 			return 2;
 	}
 }
@@ -307,44 +311,44 @@ int resetVars() {
 	initVarsGameMap = 1;
 	initVarsFeedLCD = 1;
 	displayWelcomeText = 1;
-	return 0;
+	return 0; // Returns gameState 0 to get back to welcome screen
 }
 
+// This function displays the current score of the game in progress when the game is paused.
 void displayScore(int score){
-
-		int partialScore1, partialScore2, partialScore3, partialScore4;
+		int partialScore1, partialScore2, partialScore3, partialScore4; // Establishing integers for every digit of score when displaying it on the Seven Segment Displays
 	
 		if (score <= 9) // Displays the Score if there is only 1 digit
-			Write_7Seg(4, score);
+			Write_7Seg(4, score); // Displays ones digit on Segment 4
 		else if (score >= 10 && score <= 99) { // Displays the score if there is 2 digits
-		partialScore1 = score % 10;
-		Write_7Seg(4, partialScore1);
-		partialScore2 = (score / 10) % 10;
-		Write_7Seg(3, partialScore2);
+			partialScore1 = score % 10;
+			Write_7Seg(4, partialScore1); // Displays ones digit on Segment 4
+			partialScore2 = (score / 10) % 10;
+			Write_7Seg(3, partialScore2); // Displays tens digit on Segment 3
 		} else if (score >= 100 && score <= 999) { // Displays the score if there is 3 digits
-		partialScore1 = score % 10;
-		Write_7Seg(4, partialScore1);
-		partialScore2 = (score / 10) % 10;
-		Write_7Seg(3, partialScore2);
-		partialScore3 = (score / 100) % 10;
-		Write_7Seg(2, partialScore3);
+			partialScore1 = score % 10;
+			Write_7Seg(4, partialScore1); // Displays ones digit on Segment 4
+			partialScore2 = (score / 10) % 10;
+			Write_7Seg(3, partialScore2); // Displays tens digit on Segment 3
+			partialScore3 = (score / 100) % 10;
+			Write_7Seg(2, partialScore3); // Displays hundreds digit on Segment 2
 		} else if (score >= 1000 && score <= 9999) { // Displays the score if there is 4 digits
-		partialScore1 = score % 10;
-		Write_7Seg(4, partialScore1);
-		partialScore2 = (score / 10) % 10;
-		Write_7Seg(3, partialScore2);
-		partialScore3 = (score / 100) % 10;
-		Write_7Seg(2, partialScore3);
-		partialScore4 = (score / 1000) % 10;
-		Write_7Seg(1, partialScore4);
+			partialScore1 = score % 10;
+			Write_7Seg(4, partialScore1); // Displays ones digit on Segment 4
+			partialScore2 = (score / 10) % 10;
+			Write_7Seg(3, partialScore2); // Displays tens digit on Segment 3
+			partialScore3 = (score / 100) % 10;
+			Write_7Seg(2, partialScore3); // Displays hundreds digit on Segment 2
+			partialScore4 = (score / 1000) % 10;
+			Write_7Seg(1, partialScore4); // Displays thousands digit on Segment 1
 	}
 
 }
 
-// function to make button presses simpler with debouncing active
+// This function makes button presses simpler with debouncing active
 int buttonPress(uint8_t buttonNum){
   	static int lastPressTime;
-	if (initVarsButton == 1) {
+	if (initVarsButton == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		lastPressTime = 0;
 		initVarsButton = 0;
 	}
@@ -358,8 +362,11 @@ int buttonPress(uint8_t buttonNum){
 	return 0; // if not pressed return 0
 }
 
-// will write out a single frame of the lcd depending on how shifted we are
-// position 1 = up position 0 = down; line1 is top and line 2 is bottom
+/*
+	will write out a single frame of the lcd depending on how shifted we are
+ 	position 1 = up position 0 = down; line1 is top and line 2 is bottom
+*/
+
 void feed_LCD(char* line1, char* line2, int numShift, int yposition, int* loss){
 	int obstPos1[4]; // four obsticales at most at any time
 	int obstPos2[4];
@@ -369,7 +376,7 @@ void feed_LCD(char* line1, char* line2, int numShift, int yposition, int* loss){
 	int upDown; // variable to store weather an obstical is on the top or on the bottom line
 	static int prevJump = 0;
 	
-	if (initVarsFeedLCD == 1) {
+	if (initVarsFeedLCD == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		prevJump = 0;
 		initVarsFeedLCD = 0;
 	}
@@ -431,17 +438,17 @@ void feed_LCD(char* line1, char* line2, int numShift, int yposition, int* loss){
 		}
 		
 		if(upDown == 1){ // deleting obsticals from their previous position
-		Write_Instr_LCD(0x80 | obstPos1[i]+1-numShift); // deletes previous character
-		Write_Char_LCD(' ');
-			
-		Write_Instr_LCD(0x80 | obstPos1[i]-numShift); // writes to top line
-		Write_Char_LCD(l1);
-	  } else {
-		Write_Instr_LCD(0xC0 | obstPos2[i]+1-numShift); // deletes previous character
-		Write_Char_LCD(' ');
-			
-		Write_Instr_LCD(0xC0 | obstPos2[i]-numShift); // writes to bottom line
-		Write_Char_LCD(l2);
+			Write_Instr_LCD(0x80 | obstPos1[i]+1-numShift); // deletes previous character
+			Write_Char_LCD(' ');
+				
+			Write_Instr_LCD(0x80 | obstPos1[i]-numShift); // writes to top line
+			Write_Char_LCD(l1);
+	  	} else {
+			Write_Instr_LCD(0xC0 | obstPos2[i]+1-numShift); // deletes previous character
+			Write_Char_LCD(' ');
+				
+			Write_Instr_LCD(0xC0 | obstPos2[i]-numShift); // writes to bottom line
+			Write_Char_LCD(l2);
 		}
 	}
 	
@@ -462,7 +469,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 	static int start;
 	int obstPosition; // obst position 1 = up, 0 = down;
 	int temp = 1;
-	if (initVarsGameMap == 1) {
+	if (initVarsGameMap == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		start = 0;
 		initVarsGameMap = 0;
 	}
@@ -472,7 +479,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 		line2buffer[i] = ' ';
 	}
 	
-	if(difficulty == 2) {
+	if(difficulty == 2) { // Creates game map if difficulty == 2
 		for(int i = 1; i <= 16; i++) {
 			obstPosition = rand() % 2;
 			temp = (i*4)-1; // place obsticles at indexes 3, 7, 11, 15, ... , 59, 63
@@ -482,7 +489,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 				line2buffer[temp] = 'x'; // place an obsticle in the bottom line
 			}
 		}
-	} else if(difficulty == 1){
+	} else if(difficulty == 1){ // Creates game map if difficulty == 1
 		for(int i = 1; i <= 8; i++){
 			obstPosition = rand() % 2;
 			temp = (i*8)-1; // place obsticles at indexes 7, 15, ... , 55, 63
@@ -492,19 +499,18 @@ void createGameMap(char** line1, char** line2, int difficulty){
 				line2buffer[temp] = 'x';
 			}
 		}
-	} else if(difficulty == 0){
-		for(int i = 1; i <= 4; i++){
+	} else if(difficulty == 0){ // Creates game map if difficulty == 0
+		for(int i = 1; i <= 4; i++) {
 			obstPosition = rand() % 2;
-			temp = (i*16)-1; // place obsticle at indexe 15, 31, 47, 63
-			if(obstPosition == 0){
+			temp = (i*16)-1; // place obsticle at indexes 15, 31, 47, 63
+			if(obstPosition == 0)
 				line1buffer[temp] = 'x';
-			} else {
+			else
 				line2buffer[temp] = 'x';
-			}
 		}
 	}
-	if (start == 0){ // on the first run through, we don't want to spawn any obsticles on the player so we delete the first 8 obsticles
-		for(int i = 0; i<8; i++){
+	if (start == 0) { // on the first run through, we don't want to spawn any obsticles on the player so we delete the first 8 obsticles
+		for(int i = 0; i<8; i++) {
 			line1buffer[i] = ' '; 
 			line2buffer[i] = ' ';
 		}
@@ -514,14 +520,16 @@ void createGameMap(char** line1, char** line2, int difficulty){
 	*line2 = line2buffer;
 }
 
+// Shifts LCD text based on the direction given to the function
 void Shift_LCD(int direction) {
-	if (direction == 0)
-		Write_Instr_LCD(0x18); // left
-	if (direction == 1)
-		Write_Instr_LCD(0x1C); // right
+	if (direction == 0) // Shifts the LCD text to the left if direction = 0
+		Write_Instr_LCD(0x18);
+	if (direction == 1) // Shifts the LCD text to the right if direction = 1
+		Write_Instr_LCD(0x1C);
 }
 
-void Init_GPIO_Ports(){
+// Initializes all ports for LCD, Seven Segment Displays, Buzzer, and Buttons
+void Init_GPIO_Ports() {
   	uint32_t temp;
   	/* enable GPIOA clock */ 
   	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN; 
@@ -530,7 +538,7 @@ void Init_GPIO_Ports(){
   	/* enable GPIOC clock*/
   	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
-	// PC9: Buzzer
+	// Initializing PC9: Buzzer
 	temp = GPIOC->MODER;
 	temp &= ~(0x03<<(2*9));
 	temp |= (0x01<<(2*9));
@@ -544,7 +552,7 @@ void Init_GPIO_Ports(){
 	temp &= ~(0x03<<(2*9));
 	GPIOC->PUPDR = temp;
 	
-	// SW5: PB8; SW4: PB9; SW3: PB10; SW2: PB11
+	// Initializing SW5: PB8; SW4: PB9; SW3: PB10; SW2: PB11
 	temp = GPIOB->MODER;
 	temp &= ~(0x03<<(2*8));
 	temp &= ~(0x03<<(2*9));
@@ -566,7 +574,7 @@ void Init_GPIO_Ports(){
 	temp &= ~(0x03<<(2*11));
 	GPIOB->PUPDR = temp;
 		
-	/*PA5: CLK for Both LCD and Seven Segment & PA10: CLK for LCD set to outputs*/ 
+	// Initializing PA5: CLK for Both LCD and Seven Segment & PA10: CLK for LCD set to outputs 
 	temp = GPIOA->MODER;
 	temp &= ~(0x03<<(2*5)); 
 	temp |= (0x01<<(2*5)); 
@@ -584,7 +592,7 @@ void Init_GPIO_Ports(){
 	temp &= ~(0x03<<(2*10));
 	GPIOA->PUPDR = temp;
 	
-	  /*PB5: Output Mode for LCD and Seven Segment*/
+	// Initializing PB5: Output Mode for LCD and Seven Segment
 	temp = GPIOB->MODER;
 	temp &= ~(0x03<<(2*5)); 
 	temp |= (0x01<<(2*5)); 
@@ -598,7 +606,7 @@ void Init_GPIO_Ports(){
 	temp &= ~(0x03<<(2*5)); 
 	GPIOB->PUPDR = temp;
 	
-	/* LCD controller reset sequence */ 
+	// Initializing LCD controller reset sequence
 	Delay(20);
 	LCD_nibble_write(0x30,0); 
 	Delay(5); 
@@ -614,7 +622,7 @@ void Init_GPIO_Ports(){
 	Write_Instr_LCD(0x01); /* clear display screen and return to home position*/ 
 	Write_Instr_LCD(0x06); /* move cursor to right (entry mode set instruction)*/
 	
-	// PC10: latch for Seven Segment
+	// Initializing PC10: latch for Seven Segment
 	temp = GPIOC->MODER;
 	temp &= ~(0x03<<(2*10));
 	temp |= (0x01<<(2*10));
@@ -629,31 +637,33 @@ void Init_GPIO_Ports(){
 	GPIOC->PUPDR = temp;	
 }
 
+// This function acts as the processing function for the LCD
 void Write_SR_LCD(uint8_t temp){
 	int i;
-	uint8_t mask=0b10000000;
+	uint8_t mask=0b10000000; // Creating a mask to process each bit of the instruction given from LCD_nibble_write
 	
-	for(i=0; i<8; i++) {
-		if((temp&mask)==0)
+	for(i=0; i<8; i++) { // Looping to process each bit to the LCD
+		if((temp&mask)==0) // If the current bit is 0, send 0 to the shift register
 			GPIOB->ODR&=~(1<<5);
-		else
+		else // If current bit is 1, send 1 to the shift register
 			GPIOB->ODR|=(1<<5);
 		
-		/*	Sclck */
-		GPIOA->ODR&=~(1<<5); GPIOA->ODR|=(1<<5);
+		// Disabling and enabling the clock to shift to the next bit in the shift register
+		GPIOA->ODR&=~(1<<5);
+		GPIOA->ODR|=(1<<5);
 		Delay(1);
 		
-		mask=mask>>1;
+		mask=mask>>1; // Moving to the next bit
 	}
 	
-	/*Latch*/
+	// Enabling the latch to process all of the given values of the shift register into the LCD
 	GPIOA->ODR|=(1<<10); 
 	GPIOA->ODR&=~(1<<10);
 }
 
-void LCD_nibble_write(uint8_t temp, uint8_t s){
-/*writing instruction*/ 
-	if (s==0){ 
+// This function acts the mediater to the processing function and the functions doing different functions
+void LCD_nibble_write(uint8_t temp, uint8_t s) {
+	if (s==0) { // Occurs if performing a task other than writing to LCD
 		temp=temp&0xF0;
 		temp=temp|0x02; /*RS (bit 0) = 0 for Command EN (bit1)=high */ 
 		Write_SR_LCD(temp);
@@ -662,8 +672,7 @@ void LCD_nibble_write(uint8_t temp, uint8_t s){
 	  	Write_SR_LCD(temp);
 	}
 	
-	/*writing data*/ 
-	else if (s==1) {
+	else if (s==1) { // Occurs if writing characters to the LCD
 		temp=temp&0xF0;
 		temp=temp|0x03;	/*RS(bit 0)=1 for data EN (bit1) = high*/ 
 	  	Write_SR_LCD(temp);
@@ -673,105 +682,112 @@ void LCD_nibble_write(uint8_t temp, uint8_t s){
 	}
 }
 
-void Write_Instr_LCD(uint8_t code){
-	LCD_nibble_write(code & 0xF0, 0);
+// This function processes all instructions for the LCD to function
+void Write_Instr_LCD(uint8_t code) {
+	LCD_nibble_write(code & 0xF0, 0); // Processing the four most significant bits of the instruction to the processing function of the LCD
 	code = code << 4;
-	LCD_nibble_write(code, 0);
+	LCD_nibble_write(code, 0); // Processing the last four bits of the instruction being written to the processing function of the LCD
 	Delay(2);
 }
 
+// This function takes a given character and writes it to the LCD
 void Write_Char_LCD(uint8_t code){
-	LCD_nibble_write(code & 0xF0, 1);
-	code = code << 4;
-	LCD_nibble_write(code, 1);
+	LCD_nibble_write(code & 0xF0, 1); // Writing the four most significant bits of the character to the processing function of the LCD
+	code = code << 4; // Shifting the least significant bits to the four most significant bits
+	LCD_nibble_write(code, 1); // Writing the last four bits of the character being written to the processing function of the LCD
 	Delay(1);
 }
 
+// This function takes a given string of characters and processes each character to the LCD
 void Write_String_LCD(char* temp){
 	int i = 0; 
 	
 	while(temp[i] != 0){ // while not at the end of the string
-		Write_Char_LCD(temp[i]);
-		i++;
+		Write_Char_LCD(temp[i]); // Write the current character to LCD
+		i++; // Move to next character
 	}
 }
 
-void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
+// This function is the processing to process each bit and enable the latch to use the Seven Segment Displays
+void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit) {
   	int i;
-  	uint8_t mask=0b10000000;
-  	for(i=0; i<8; i++) {
-      	if((temp_Digit&mask)==0) 
+  	uint8_t mask=0b10000000; // Creating a mask to process each bit provided to the function
+  	for(i=0; i<8; i++) { // Looping through each bit of the given number to turn on each segment for each number
+      	if((temp_Digit&mask)==0) // If current bit == 0, set output to shift register as 0
         	GPIOB->ODR&=~(1<<5);
-    	else
+    	else // If current bit == 1, set output to shift register as 1
       		GPIOB->ODR|=(1<<5);
-    	/*	Sclck */
+    	// Disables and enables the clock of the shift register being used to process the next bit
     	GPIOA->ODR&=~(1<<5);
     	Delay(1);
     	GPIOA->ODR|=(1<<5);
     	Delay(1);
-    	mask=mask>>1;
+    	mask=mask>>1; // Moving to next bit
   	}
 
-  	mask=0b10000000;
-  	for(i=0; i<8; i++) {
-	  	if((temp_Enable&mask)==0) 
+  	mask=0b10000000; // Changing the mask back to original state to start at the beginning of the Enable binary #
+  	for(i=0; i<8; i++) { // Looping through each bit of the provided enable number to turn on the correct seven segment
+	  	if((temp_Enable&mask)==0) // If current bit == 0, set output to shift register as 0
       		GPIOB->ODR&=~(1<<5);
-	  	else
+	  	else // If current bit == 1, set output to shift register as 1
       		GPIOB->ODR|=(1<<5);
     	/*	Sclck */
+		// Disables and enables the clock of the shift register being used to process the next bit
 	  	GPIOA->ODR&=~(1<<5);
-    	/*Delay(1);*/ 
+    	Delay(1);
 	  	GPIOA->ODR|=(1<<5);
-    	/*Delay(1);	*/ 
-	  	mask=mask>>1;
+    	Delay(1);
+	  	mask=mask>>1; // Moving to next bit
   	}
-  	/*Latch*/ // Needs to be tampered with to run LCD as well
+  	// Enabling the latch to display the number on the given seven segment display
   	GPIOC->ODR|=(1<<10); 
   	GPIOC->ODR&=~(1<<10);
 }
 
+// This function takes in the Seven Segment Display we want and displays the given number on it
 void Write_7Seg(uint8_t temp_Enable, uint8_t temp_Digit){
-  	uint8_t Enable[5] = {0x00, 0x08, 0x04, 0x02, 0x01};
-  	/* Enable[i] can enable display i by writing one to DIGIT i and zeros to the other Digits */
+  	uint8_t Enable[5] = {0x00, 0x08, 0x04, 0x02, 0x01}; // Assigning an array to determine which display is being used
 
-  	uint8_t Digit[10]= {0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90};
+  	uint8_t Digit[10]= {0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90}; // Assigning an array to determine the code necessary to display the desired number
 
-  	Write_SR_7S(Enable[temp_Enable], Digit[temp_Digit]);
+  	Write_SR_7S(Enable[temp_Enable], Digit[temp_Digit]); // Pass the values of the arrays into the processing function for Seven Segment Displays
 }
 
+// This function initializes the clock for the Microcontroller to run the program
 void SystemClock_Config(void){
   	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  // Configure the main internal regulator output voltage
+  	// Configure the main internal regulator output voltage
   	if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK) {
     	Error_Handler();
   	}
 
-  // Initializes the RCC Oscillators according to the specified parameters
-  //  in the RCC_OscInitTypeDef structure.
+  	// Initializes the RCC Oscillators according to the specified parameters
+  	//  in the RCC_OscInitTypeDef structure.
   	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   	RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   	RCC_OscInitStruct.MSICalibrationValue = 0;
   	RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-    Error_Handler();
-  }
+  	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+    	Error_Handler();
+  	}
 
-  // Initializes the CPU, AHB and APB buses clocks
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+  	// Initializes the CPU, AHB and APB buses clocks
+  	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
-    Error_Handler();
-  }
+  	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
+    	Error_Handler();
+  	}
 }
 
+// This function occurs if there is an error setting up the clocks for the program to indicate there is a problem
 void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
