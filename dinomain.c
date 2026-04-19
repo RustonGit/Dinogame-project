@@ -24,12 +24,12 @@ void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_SW4_Init();
 void EXTI9_5_IRQHandler();
-void jump_Buzz(int);
+void jump_Buzz();
 void displayScore(int);
 
 volatile int inputEvent = 0; // must use this global variable so it is effected by the interrupt
 // Used to prevent initialization of certain variables multiple times in 1 run of the game
-int initVarsWelcome = 1, initVarsButton = 1, initVarsGame = 1, initVarsGameOver = 1, initVarsGameMap = 1, displayWelcomeText = 1;
+int initVarsWelcome = 1, initVarsButton = 1, initVarsGame = 1, initVarsGameOver = 1, initVarsGameMap = 1, displayWelcomeText = 1, initVarsFeedLCD = 1;
 
 //Main code 
 int main(){
@@ -76,7 +76,7 @@ int main(){
 					} else if(inputEvent == 3) {
 						//3 is jump
 						jump = 1;
-						jump_Buzz(now);
+						jump_Buzz();
 						inputEvent = 0;
 					}
 	        	} else
@@ -90,9 +90,9 @@ int main(){
 	}
 }
 
-// Turn buzzer on, after 500 ms turn off, last line of code as safegaurd
-void jump_Buzz(int now){
-	for(int i = 0; i < 150000; i++){
+// Turn buzzer on, after 50 ms turn off, last line of code as safegaurd
+void jump_Buzz(){
+	for(int i = 0; i < 15000; i++){
 		GPIOC->ODR |= (1 << 9);
 		GPIOC->ODR &= ~(1 << 9);
 	}
@@ -222,7 +222,7 @@ int updateGame(uint32_t now, int* difficulty, int *jump, int* score) {
 	}
 	
 	if (start == 0) { // make sure we have a map first
-    	createGameMap(&line1, &line2, *difficulty);
+    createGameMap(&line1, &line2, *difficulty);
 		EXTI->IMR1  |= (1 << 8); // Enabling Interrupts once the game has started
 		EXTI->IMR1  |= (1 << 9);
 		start = 1;
@@ -234,6 +234,12 @@ int updateGame(uint32_t now, int* difficulty, int *jump, int* score) {
 		feed_LCD(line1, line2, shiftKey, *jump, &lost); // shift screen
 		*score += 1;
 		*jump = 0;
+		if(*difficulty == 0){ // fixing an issue with not clearing the left symbol in easy difficulty, also helps slow down the game to make it easier
+			Write_Instr_LCD(0x80);
+			Write_Char_LCD(' ');
+			Write_Instr_LCD(0xC0);
+			Write_Char_LCD(' ');
+		}
 		
 		shiftKey++; // update the offset to move the characters
 		if (shiftKey >= 48) {
@@ -255,8 +261,8 @@ int updateGameOver(uint32_t now, int* score) {
 	static int displaySecondText;
 	static uint32_t waitTime; // Using integer to keep track of how long to wait to display next text
 	char* gameOver = "GAME OVER!!"; // Using char* to write Game Over text to LCD
-	char* displayScore = "   Score: ";
-	char* startOver = "   Try Again??  "; //Added spaces to get rid of extra characters
+	char* displayScore = "  Score: ";
+	char* startOver = " Try Again??     "; //Added spaces to get rid of extra characters
 	char buffer[6]; // Score is not a single digit, so create a string
 	
 	if (initVarsGameOver == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
@@ -299,6 +305,7 @@ int resetVars() {
 	initVarsGame = 1;
 	initVarsGameOver = 1;
 	initVarsGameMap = 1;
+	initVarsFeedLCD = 1;
 	displayWelcomeText = 1;
 	return 0;
 }
@@ -353,26 +360,99 @@ int buttonPress(uint8_t buttonNum){
 
 // will write out a single frame of the lcd depending on how shifted we are
 // position 1 = up position 0 = down; line1 is top and line 2 is bottom
-void feed_LCD(char* line1, char* line2, int numShift, int position, int* loss){
-  	for(int i = 0; i<16; i++){
-		char l1 = line1[i+numShift]; // places all characters in the current frame depending on which offset we are on
-		char l2 = line2[i+numShift];
-		if(position == 1 && i == 1){ // jump character and see if we are on top of a x to see if we have lost.
-			if(line1[i+numShift] == 'x')
-				*loss += 1;
-			l1 = '*';
-		} else if (position == 0 && i == 1){
-			if(line2[i+numShift] == 'x')
-				*loss += 1;
-			l2 = '*';
-		}
-				
-		Write_Instr_LCD(0x80 | i); // writes to top line
-		Write_Char_LCD(l1);
+void feed_LCD(char* line1, char* line2, int numShift, int yposition, int* loss){
+	int obstPos1[4]; // four obsticales at most at any time
+	int obstPos2[4];
+	int posIndexer = 0;// int to check for obsticals in our current frame
+	char l1; // storing the character to print (l1 and l2 to keep things organized and understandable)
+	char l2;
+	int upDown; // variable to store weather an obstical is on the top or on the bottom line
+	static int prevJump = 0;
 	
-		Write_Instr_LCD(0xC0 | i); // writes to bottom line
-		Write_Char_LCD(l2);
+	if (initVarsFeedLCD == 1) {
+		prevJump = 0;
+		initVarsFeedLCD = 0;
 	}
+	
+	for(int i = 0; i < 4; i++){ // initialize obstical positions to 0
+    obstPos1[i] = 0;
+    obstPos2[i] = 0;
+}
+	
+	for(int i = 0; i<16; i++){ // detect where every obsticle is
+		if (line1[i+numShift] == 'x'){
+			obstPos1[posIndexer] = i+numShift;
+			posIndexer++;
+		}	 else if (line2[i+numShift] == 'x'){
+			obstPos2[posIndexer] = i+numShift;
+			posIndexer++;
+		}
+		if (i == 1){
+			if((yposition == 1) && (line1[i+numShift] == 'x')){ // check to see if we collided with an obsticle
+					*loss += 1;
+			} else if((yposition == 0) && (line2[i+numShift] == 'x')){// if the position of the obsticle is where the character is we should set a lost variable
+					*loss += 1;
+			}
+			if (prevJump != yposition){
+				if (prevJump == 1 && (line1[i+numShift] != 'x')){ // clearing previous jumping position when we have just jumped (prevJump != yposition)
+					Write_Instr_LCD(0x81);
+					Write_Char_LCD(' ');
+				} else if (prevJump == 0 && (line2[i+numShift] != 'x')){
+					Write_Instr_LCD(0xC1);
+					Write_Char_LCD(' ');
+				}
+			}
+		}
+	}
+	
+	for(int i = 0; i<4; i++){ // writing each obsticle position
+		
+		// notice all the if statements, if there are less than 4 on the screen we will look past them and do nothing
+		
+		l1 = ' '; // initialize l1 and l2 to blank in case we try to print them by accident
+		l2 = ' ';
+		if(line1[obstPos1[i]] == 'x'){ // check which line each obsticle is on
+			l1 = line1[obstPos1[i]];
+			upDown = 1;
+		}
+		else if(line2[obstPos2[i]] == 'x'){
+			l2 = line2[obstPos2[i]];
+			upDown = 0;
+		} else
+			break; // if there are no more obsticles to check, skip to the end
+		
+		
+		if(line1[numShift] == 'x'){ // if the first character in line 1 is 'x' then delete it
+			Write_Instr_LCD(0x80); // deletes previous character
+			Write_Char_LCD(' ');
+		} else if(line2[numShift] == 'x'){ // if the first character in line 2 is 'x' then delete it
+			Write_Instr_LCD(0xC0); // deletes previous character
+			Write_Char_LCD(' ');
+		}
+		
+		if(upDown == 1){ // deleting obsticals from their previous position
+		Write_Instr_LCD(0x80 | obstPos1[i]+1-numShift); // deletes previous character
+		Write_Char_LCD(' ');
+			
+		Write_Instr_LCD(0x80 | obstPos1[i]-numShift); // writes to top line
+		Write_Char_LCD(l1);
+	  } else {
+		Write_Instr_LCD(0xC0 | obstPos2[i]+1-numShift); // deletes previous character
+		Write_Char_LCD(' ');
+			
+		Write_Instr_LCD(0xC0 | obstPos2[i]-numShift); // writes to bottom line
+		Write_Char_LCD(l2);
+		}
+	}
+	
+		if(yposition == 1 && (prevJump != yposition)){ // place the character in a position so we go over any obsticle that might be in its way
+			Write_Instr_LCD(0x81);
+			Write_Char_LCD('*');
+		} else if(yposition == 0){
+			Write_Instr_LCD(0xC1);
+			Write_Char_LCD('*');
+		}
+		prevJump = yposition;
 }
 
 // this function might be wrong, keeps writing almost random letters for some reason
@@ -392,7 +472,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 		line2buffer[i] = ' ';
 	}
 	
-	if(difficulty == 0) {
+	if(difficulty == 2) {
 		for(int i = 1; i <= 16; i++) {
 			obstPosition = rand() % 2;
 			temp = (i*4)-1; // place obsticles at indexes 3, 7, 11, 15, ... , 59, 63
@@ -412,7 +492,7 @@ void createGameMap(char** line1, char** line2, int difficulty){
 				line2buffer[temp] = 'x';
 			}
 		}
-	} else if(difficulty == 2){
+	} else if(difficulty == 0){
 		for(int i = 1; i <= 4; i++){
 			obstPosition = rand() % 2;
 			temp = (i*16)-1; // place obsticle at indexe 15, 31, 47, 63
