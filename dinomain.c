@@ -394,7 +394,7 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
     obstPos2[i] = 0;
 	}
 	
-	for(int i = 0; i<16; i++){ // detect where every obsticle is
+	for(int i = 0; i<16; i++){ // detect where every obstacle is
 		if (line1[i+numShift] == 'x'){
 			obstPos1[posIndexer] = i+numShift;
 			posIndexer++;
@@ -403,9 +403,9 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
 			posIndexer++;
 		}
 		if (i == 1){
-			if((yposition == 1) && (line1[i+numShift] == 'x')){ // check to see if we collided with an obsticle
+			if((yposition == 1) && (line1[i+numShift] == 'x')){ // check to see if we collided with an obstacle
 					*loss += 1;
-			} else if((yposition == 0) && (line2[i+numShift] == 'x')){// if the position of the obsticle is where the character is we should set a lost variable
+			} else if((yposition == 0) && (line2[i+numShift] == 'x')){// if the position of the obstacle is where the character is we should set a lost variable
 					*loss += 1;
 			}
 			if (prevJump != yposition){
@@ -420,13 +420,13 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
 		}
 	}
 	
-	for(int i = 0; i<4; i++){ // writing each obsticle position
+	for(int i = 0; i<4; i++){ // writing each obstacle position
 		
 		// notice all the if statements, if there are less than 4 on the screen we will look past them and do nothing
 		
 		l1 = ' '; // initialize l1 and l2 to blank in case we try to print them by accident
 		l2 = ' ';
-		if(line1[obstPos1[i]] == 'x'){ // check which line each obsticle is on
+		if(line1[obstPos1[i]] == 'x'){ // check which line each obstacle is on
 			l1 = line1[obstPos1[i]];
 			upDown = 1;
 		}
@@ -434,7 +434,7 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
 			l2 = line2[obstPos2[i]];
 			upDown = 0;
 		} else
-			break; // if there are no more obsticles to check, skip to the end
+			break; // if there are no more obstacles to check, skip to the end
 		
 		
 		if(line1[numShift] == 'x'){ // if the first character in line 1 is 'x' then delete it
@@ -460,7 +460,7 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
 		}
 	}
 	
-		if(yposition == 1 && (prevJump != yposition)){ // place the character in a position so we go over any obsticle that might be in its way
+		if(yposition == 1 && (prevJump != yposition)){ // place the character in a position so we go over any obstacle that might be in its way
 			Write_Instr_LCD(0x81);
 			Write_Char_LCD('*');
 		} else if(yposition == 0){
@@ -471,7 +471,7 @@ void feedLCD(char* line1, char* line2, uint8_t numShift, uint8_t yposition, int*
 }
 
 /*
-	forms the position of the obsticle in the game. We use rand() to make this
+	forms the position of the obstacle in the game. We use rand() to make this
 	random and this will be called every time we run out of characters to display
 */
 void createGameMap(char** line1, char** line2, uint8_t difficulty){
@@ -490,20 +490,20 @@ void createGameMap(char** line1, char** line2, uint8_t difficulty){
 		line2buffer[i] = ' ';
 	}
 	
-	if(difficulty == 2) { // Creates game map with obsticles every 4 spaces if hard is chosen
+	if(difficulty == 2) { // Creates game map with obstacles every 4 spaces if hard is chosen
 		for(int i = 1; i <= 16; i++) {
 			obstPosition = rand() % 2;
-			temp = (i*4)-1; // place obsticles at indexes 3, 7, 11, 15, ... , 59, 63
+			temp = (i*4)-1; // place obstacles at indexes 3, 7, 11, 15, ... , 59, 63
 			if(obstPosition == 0){
-				line1buffer[temp] = 'x'; // place an obsticle in the top line
+				line1buffer[temp] = 'x'; // place an obstacle in the top line
 			} else {
-				line2buffer[temp] = 'x'; // place an obsticle in the bottom line
+				line2buffer[temp] = 'x'; // place an obstacle in the bottom line
 			}
 		}
 	} else if(difficulty == 1){ // Ever 8 spaces if medium is chosen
 		for(int i = 1; i <= 8; i++){
 			obstPosition = rand() % 2;
-			temp = (i*8)-1; // place obsticles at indexes 7, 15, ... , 55, 63
+			temp = (i*8)-1; // place obstacles at indexes 7, 15, ... , 55, 63
 			if(obstPosition == 0){
 				line1buffer[temp] = 'x';
 			} else {
@@ -513,14 +513,14 @@ void createGameMap(char** line1, char** line2, uint8_t difficulty){
 	} else if(difficulty == 0){ // And every 16 spaces if easy is chosen
 		for(int i = 1; i <= 4; i++) {
 			obstPosition = rand() % 2;
-			temp = (i*16)-1; // place obsticle at indexes 15, 31, 47, 63
+			temp = (i*16)-1; // place obstacle at indexes 15, 31, 47, 63
 			if(obstPosition == 0)
 				line1buffer[temp] = 'x';
 			else
 				line2buffer[temp] = 'x';
 		}
 	}
-	if (start == 0) { // on the first run through, we don't want to spawn any obsticles on the player so we delete the first 8 obsticles
+	if (start == 0) { // on the first run through, we don't want to spawn any obstacles on the player so we delete the first 8 obstacles
 		for(int i = 0; i<8; i++) {
 			line1buffer[i] = ' '; 
 			line2buffer[i] = ' ';
