@@ -95,7 +95,7 @@ int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are o
 	static int direction;
 	static int shiftChecker;
 	char* welcome = "Push to Start   "; //Added spaces to get rid of extra characters
-  	char* difficultys = " 0=E 1=M 2=H    "; //Added spaces to get rid of extra characters
+  	char* difficultys = " 2=E 3=M 4=H    "; //Added spaces to get rid of extra characters
 	
 	if (initVarsWelcome == 1) { // Initialize all variables if it is the first time entering the function in the current runthrough of the game
 		lastShift = 0; // have to use static with these variables so we don't lose their value in each function call
